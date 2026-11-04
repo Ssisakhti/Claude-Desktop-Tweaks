@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add a complete bounded direct font/controller plan with shared production health checks and semantic tests.
+- Verify local console focus before direct writes and wait safely for asynchronous focus acknowledgements.
+- Verify child-frame handoffs against both the target and chat parent, and classify browser ancestry before creating document identities.
+- Verify clean temporary-home and live-profile removal/reinstallation separately from first-run OS permissions.
 - Replace nine static TTF faces with the unmodified official Estedad 7.3 variable WOFF2; retain weights 100–900 in one face.
 - Reduce the chat console payload from about 2.19 MB to 186 KB.
 - Retain safe failure reasons and phase timings across successful retries.

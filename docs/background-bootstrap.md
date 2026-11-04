@@ -56,7 +56,23 @@ Finder was then placed foreground. Three direct commands transferred the base64 
 
 This qualifies a small transport transaction through the new modules after an explicit foreground bootstrap. It does not qualify the full font/style payload, cold startup, document frame discovery, or bootstrap without focus transfer. The test did not change the app's main process, files, signature, or security settings. The experimental modules remain outside the default runtime.
 
+### Complete production payload plan
+
+The experimental builder now separates the official font data and trusted production modules into 33 bounded commands. Semantic tests execute the actual controller in all five supported frame kinds, check the complete font bytes and controller health, preserve text and table structure, and confirm that temporary namespace cleanup retains the installed controller. Generated commands use no `eval` or `Function`.
+
+A subsequent live chat check used a fresh normal app process with the default watcher absent. After explicit console bootstrap and source receipt verification, Finder was foreground while the full plan ran. All 33 commands and cleanup completed, controller health passed, the owned tools closed, and the clipboard was unchanged. This extends the small-data result above to the production font/controller payload in chat. It does not establish quiet startup or automatic acceptance of every frame or future app version.
+
+Local prompt focus is verified before AXValue writes, after their exact echo, and immediately before Return. A pending focus acknowledgement delays the write without restarting the deadline. This is local console focus; the direct adapter does not activate Claude. Child-frame handoff additionally pins the chat parent's exact accessibility element and the actual target frame, with independent browser ancestry classification before document identity creation.
+
 ## Other approaches and boundaries
+
+### Process-local docked startup experiment
+
+Read-only inspection of the same installed app found a process-local `CLAUDE_DEV_TOOLS` startup option. The value `bottom` requests the guest's tools directly at startup, without selecting a focused web contents through the external menu. This is an observed implementation detail, not a supported external API.
+
+A live experiment stopped the normal watcher, confirmed the previous app exited, and launched the official executable once with this value in that process's environment. Finder was foreground before launch. The exact launched app PID exposed one embedded tools web area and one console prompt, with no separate tools window. Of 90 foreground samples over roughly 18 seconds, 87 showed Claude foreground. This route therefore did not preserve foreground focus. The experiment did not distinguish activation caused by ordinary app startup from activation caused by the embedded tools.
+
+The experimental process was closed and a normal launch was verified to have no automatic console. No global environment, app files, signature, security settings, or private signed launch token were changed. The docked startup option is not enabled by the installer. Electron's [inspectable view implementation](https://github.com/electron/electron/blob/v44.9.3/shell/browser/ui/inspectable_web_contents_view.cc) distinguishes detached-window activation from embedded view focus, but that distinction alone does not establish quiet startup in the host app.
 
 - An existing console can support asynchronous accessibility value writes and app-targeted key events. That proves a transport after bootstrap; it does not establish a startup mechanism by itself.
 - Electron's `executeJavaScript()` and `openDevTools({activate:false})` are main-process APIs. Their existence does not grant an external integration access to them. No such access was introduced here.

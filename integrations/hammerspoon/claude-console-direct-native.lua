@@ -54,7 +54,12 @@ function M.new(hs)
  local function source(record,all)
   local s=all[record.sourceWindowId];if not s then return false end
   local areas=tree(s.element,function(e)return attr(e,'AXRole')=='AXWebArea' and url(e)==record.sourceURL end)
-  return areas and #areas==1 and areas[1]==record.sourceElement
+  if not areas or #areas~=1 or areas[1]~=record.sourceElement then return false end
+  if record.toolsSourceURL then
+   local parents=tree(s.element,function(e)return attr(e,'AXRole')=='AXWebArea' and url(e)==record.toolsSourceURL end)
+   if not parents or #parents~=1 or parents[1]~=record.toolsSourceElement then return false end
+  end
+  return true
  end
  local function console(record,all)
   local w=all[record.toolsWindowId]
@@ -108,29 +113,44 @@ function M.new(hs)
   return a,c
  end
  local api={}
- function api.capture(sourceWindowId,expectedURL)
-  local a=app();if not a or not kind(expectedURL)then return nil,'invalid-source'end
+ function api.capture(sourceWindowId,expectedURL,toolsSourceURL)
+  local sourceKind=kind(expectedURL)
+  local a=app();if not a or not sourceKind then return nil,'invalid-source'end
+  if toolsSourceURL~=nil and (kind(toolsSourceURL)~='chat' or
+   sourceKind~='artifact' and sourceKind~='artifact-content' and sourceKind~='document')then return nil,'invalid-tools-source'end
   local all=windows(a);local s=all[sourceWindowId];if not s then return nil,'source-missing'end
   local seen={};for key,w in pairs(all)do seen[key]=true;if type(w.title)=='string' and w.title:match('^Developer Tools %- ')then return nil,'existing-tools'end end
   local areas=tree(s.element,function(e)return attr(e,'AXRole')=='AXWebArea' and url(e)==expectedURL end)
   if not areas or #areas~=1 then return nil,'source-ambiguous'end
+  local parent
+  if toolsSourceURL then
+   local parents=tree(s.element,function(e)return attr(e,'AXRole')=='AXWebArea' and url(e)==toolsSourceURL end)
+   if not parents or #parents~=1 then return nil,'tools-source-ambiguous'end
+   parent=parents[1]
+  end
   local nonce=(hs.host.uuid():gsub('-','')):lower();if not id(nonce)then return nil,'nonce-unavailable'end
-  local token={};captures[token]={pid=a:pid(),sourceWindowId=sourceWindowId,sourceURL=expectedURL,sourceElement=areas[1],seen=seen,nonce=nonce,kind=kind(expectedURL)}
+  local token={};captures[token]={pid=a:pid(),sourceWindowId=sourceWindowId,sourceURL=expectedURL,sourceElement=areas[1],seen=seen,nonce=nonce,kind=sourceKind,
+   toolsSourceURL=toolsSourceURL,toolsSourceElement=parent}
   return token
  end
  function api.probeCode(token)
   local r=captures[token];if not r then return nil end
   local receiptBase='{marker:"CDT_DIRECT_HANDOFF",nonce:'..quote(r.nonce)..',kind:'..quote(r.kind)
-  return '(()=>{if(location.href!=='..quote(r.sourceURL)..'){console.log(JSON.stringify('..receiptBase..',ok:false}));return;}let r=window.__claudePersianConsoleDocumentV1;if(r&&(r.document!==document||!(/^[a-f0-9]{32}$/.test(r.id)))){console.log(JSON.stringify('..receiptBase..',ok:false}));return;}if(!r){const bytes=crypto.getRandomValues(new Uint8Array(16));r={document,identity:JSON.stringify({url:location.href,parent:null}),id:Array.from(bytes,x=>x.toString(16).padStart(2,"0")).join("")};window.__claudePersianConsoleDocumentV1=r;}console.log(JSON.stringify('..receiptBase..',ok:true,documentId:r.id}));})()'
+  -- Match consoleFrame() in console-payload.cjs without accessing ancestor DOM.
+  local frame='(()=>{const frame={url:location.href,parent:null};if(frame.url!=="about:srcdoc")return frame;try{const origins=location.ancestorOrigins;let parent=frame;for(let i=0;i<Math.min(origins.length,12);i++){parent.parent={url:origins[i],parent:null};parent=parent.parent;}}catch{return {url:frame.url,parent:null};}return frame;})()'
+  -- Keep these boundaries identical to classifyFrame() in renderer-source.cjs.
+  local classify=[=[(frame=>{try{const u=new URL(frame.url);if(u.protocol==='file:'&&/\/app\.asar\/\.vite\/renderer\/(main_window|quick_window|about_window|find_in_page)\//.test(decodeURIComponent(u.pathname)))return 'shell';if(u.protocol==='https:'&&u.hostname==='claude.ai'&&!/^\/(oauth|login|auth|api)(?:\/|$)/.test(u.pathname))return u.pathname.startsWith('/code/artifact/')?'artifact':'chat';if(u.protocol==='https:'&&/^[a-z0-9-]+\.frame\.claudeusercontent\.com$/.test(u.hostname))return 'artifact-content';if(frame.url==='about:srcdoc')for(let p=frame.parent,i=0;p&&i<12;p=p.parent,i++){const ancestor=new URL(p.url);if(ancestor.protocol==='https:'&&/^[a-z0-9-]+\.frame\.claudeusercontent\.com$/.test(ancestor.hostname))return 'document';}}catch{}return null;})]=]
+  return '(()=>{if(location.href!=='..quote(r.sourceURL)..'){console.log(JSON.stringify('..receiptBase..',ok:false}));return;}const frame='..frame..';if('..classify..'(frame)!=='..quote(r.kind)..'){console.log(JSON.stringify('..receiptBase..',ok:false}));return;}const identity=JSON.stringify(frame);let r=window.__claudePersianConsoleDocumentV1;if(r&&(r.document!==document||r.identity!==identity||!(/^[a-f0-9]{32}$/.test(r.id)))){console.log(JSON.stringify('..receiptBase..',ok:false}));return;}if(!r){const bytes=crypto.getRandomValues(new Uint8Array(16));r={document,identity,id:Array.from(bytes,x=>x.toString(16).padStart(2,"0")).join("")};window.__claudePersianConsoleDocumentV1=r;}console.log(JSON.stringify('..receiptBase..',ok:true,documentId:r.id}));})()'
  end
  function api.bind(token,toolsWindowId)
   local r=captures[token];if not r then return nil,'invalid-capture'end
   local a=app(r.pid);if not a then return nil,'process-changed'end
   local all=windows(a);if r.seen[toolsWindowId] or not source(r,all)then return nil,'ownership-unproven'end
-  r.toolsWindowId=toolsWindowId;r.toolsTitle='Developer Tools - '..r.sourceURL
+  r.toolsWindowId=toolsWindowId;r.toolsTitle='Developer Tools - '..(r.toolsSourceURL or r.sourceURL)
   local c=console(r,all);if not c or emptyValue(c.prompt)~=''then return nil,'console-not-ready'end
   local proof=receipt(c,'CDT_DIRECT_HANDOFF',r.nonce)
-  if not proof or proof.ok~=true or proof.kind~=r.kind or not id(proof.documentId)then return nil,'probe-unverified'end
+  if not proof then return nil,'probe-unverified'end
+  if proof.ok~=true or proof.kind~=r.kind or not id(proof.documentId)then return nil,'probe-rejected'end
   r.documentId=proof.documentId;r.contextId=c.context;r.prompt=c.prompt;r.interactionVersion=0;r.initialVersion=0
   local ok=pcall(function()
    assert(type(hs.processInfo.processID)=='number')
@@ -162,6 +182,7 @@ function M.new(hs)
     assert(registered~=nil and registered~=false,'required lifecycle watcher unavailable')
    end
    watch(r.sourceElement,'AXLoadComplete');watch(r.sourceElement,'AXUIElementDestroyed')
+   if r.toolsSourceElement then watch(r.toolsSourceElement,'AXLoadComplete');watch(r.toolsSourceElement,'AXUIElementDestroyed')end
    watch(c.element,'AXUIElementDestroyed');r.observer:start();assert(r.observer:isRunning()==true)
   end)
   if not ok then stopTracking(r);return nil,'tracking-unavailable'end
@@ -180,14 +201,26 @@ function M.new(hs)
  end
  function api.now()return hs.timer.secondsSinceEpoch()end
  function api.promptValue(handle)local _,c=inspectRecord(handles[handle]);return c and emptyValue(c.prompt)or nil end
+ local function promptFocused(a,c)
+  return attr(c.prompt,'AXFocused')==true and attr(hs.axuielement.applicationElement(a),'AXFocusedUIElement')==c.prompt
+ end
  function api.writePrompt(handle,expected,value)
-  local r=handles[handle];local _,c=inspectRecord(r)
-  if not c or r.interactionVersion~=r.initialVersion or emptyValue(c.prompt)~=expected or type(value)~='string' or #value>14000 or c.prompt:isAttributeSettable('AXValue')~=true then return false end
-  local result=c.prompt:setAttributeValue('AXValue',value);return result~=nil and result~=false
+  local r=handles[handle];local a,c=inspectRecord(r)
+  if not a or r.interactionVersion~=r.initialVersion or emptyValue(c.prompt)~=expected or type(value)~='string' or #value>14000 or c.prompt:isAttributeSettable('AXValue')~=true then return false end
+  if not promptFocused(a,c)then return 'pending'end
+  -- Recheck identity, input and focus immediately before mutating the editor.
+  local a2,c2=inspectRecord(r)
+  if not a2 or c2.prompt~=c.prompt or emptyValue(c2.prompt)~=expected or r.interactionVersion~=r.initialVersion then return false end
+  if not promptFocused(a2,c2)then return 'pending'end
+  local result=c2.prompt:setAttributeValue('AXValue',value);return result~=nil and result~=false
  end
  function api.focusPrompt(handle)
-  local r=handles[handle];local _,c=inspectRecord(r);if not c or r.interactionVersion~=r.initialVersion then return false end
-  local result=c.prompt:setAttributeValue('AXFocused',true);return result~=nil and result~=false
+  local r=handles[handle];local a,c=inspectRecord(r);if not a or r.interactionVersion~=r.initialVersion then return false end
+  if promptFocused(a,c)then return true end
+  local result=c.prompt:setAttributeValue('AXFocused',true);if result==nil or result==false then return false end
+  local a2,c2=inspectRecord(r)
+  if not a2 or c2.prompt~=c.prompt or r.interactionVersion~=r.initialVersion then return false end
+  return promptFocused(a2,c2)and true or 'pending'
  end
  function api.execute(handle,expected)
   local r=handles[handle];local a,c=inspectRecord(r)

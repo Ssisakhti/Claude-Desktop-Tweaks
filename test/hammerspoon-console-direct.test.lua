@@ -16,11 +16,12 @@ local function fixture(options)
   promptValue=function(h)check(h==handle,'prompt reads use owned handle');return state.prompt end,
   writePrompt=function(h,before,code)
    check(h==handle and before=='' and state.prompt==before,'compare-and-write requires exact old prompt')
+   if options.writePending then return 'pending'end
    state.writes=state.writes+1;state.pending=code
    if not options.delayed then state.prompt=code end
    return not options.writeRefused
   end,
-  focusPrompt=function(h)check(h==handle,'focus is local to claimed console');state.focuses=state.focuses+1;return not options.focusRefused end,
+  focusPrompt=function(h)check(h==handle,'focus is local to claimed console');state.focuses=state.focuses+1;if options.focusRequestPending then return 'pending'end;return not options.focusRefused end,
   execute=function(h,expected)
    check(h==handle and expected==state.prompt,'Return requires exact verified complete code')
    if options.focusPending then return 'pending'end
@@ -57,12 +58,31 @@ check(not f.controller.begin(f.request),'nonce reuse rejected')
 
 f=fixture({delayed=true});check(f.controller.begin(f.request),'delayed AX handoff')
 f.controller.tick();f.controller.tick()
-check(f.state.executes==0 and f.state.focuses==0,'accepted write does not count as visible AX echo')
+check(f.state.executes==0 and f.state.focuses==1,'accepted write needs verified local focus and does not count as visible AX echo')
 f.state.prompt=f.state.pending
 f.controller.tick();check(f.state.executes==0,'local focus is a separate verified stage')
 f.controller.tick();check(f.state.executes==1,'exact delayed echo permits targeted Return')
 f.controller.stop();check(f.controller.snapshot().cleanupRequired,'cancelled namespace work reports required cleanup')
 check(f.state.releases[1]==false,'cancelled console is never automatically closed')
+
+f=fixture({focusRequestPending=true});check(f.controller.begin(f.request),'asynchronous local focus starts')
+f.run(3)
+check(f.state.writes==0 and f.state.executes==0,'pending focus acknowledgement never writes AXValue or sends Return')
+check(f.controller.snapshot().phase=='waiting-for-local-focus','pending pre-write focus is explicit')
+f.options.focusRequestPending=false;check(f.run().ok,'verified focus acknowledgement permits completion')
+check(f.state.focuses>=f.state.executes*2,'every command verifies local focus before write and after exact echo')
+f=fixture({writePending=true});f.controller.begin(f.request);f.run(3)
+check(f.state.writes==0 and f.state.executes==0,'focus lost immediately before write remains pending without mutation')
+f.options.writePending=false;check(f.run().ok,'write can resume only after its local focus guard passes')
+for _,change in ipairs({'target','input'})do
+ f=fixture({focusRequestPending=true});f.controller.begin(f.request);f.controller.tick()
+ if change=='target'then f.state.identity.contextId='different'else f.state.prompt='user input'end
+ f.options.focusRequestPending=false;f.controller.tick()
+ check(f.controller.snapshot().phase=='stopped' and f.state.writes==0 and f.state.executes==0,'changed '..change..' during focus acknowledgement stops before writing')
+ check(f.state.releases[1]==false,'waiting focus conflict never closes console')
+end
+f=fixture({focusRequestPending=true});f.controller.begin(f.request);f.controller.tick();f.state.now=3;f.controller.tick()
+check(f.controller.snapshot().reason=='timeout'and f.state.writes==0,'pre-write focus acknowledgement remains bounded')
 
 for _,key in ipairs({'pid','sourceWindowId','toolsWindowId','contextId','documentId','sourceURL','interactionVersion'})do
  f=fixture();f.controller.begin(f.request);f.controller.tick()
@@ -165,8 +185,9 @@ const codes=process.argv.slice(2).map(path=>fs.readFileSync(path,'utf8'));
 for(const source of codes)new vm.Script(source);
 function environment(){
  const document={};const logs=[];const window={__claudePersianConsoleDocumentV1:{document,id:'b'.repeat(32)}};
- const context=vm.createContext({window,document,location:{href:'https://claude.ai/chat/synthetic?x=";globalThis.injected=true;//`'},console:{log(value){logs.push(JSON.parse(value));}}});
- return {context,window,logs};
+ let clears=0;
+ const context=vm.createContext({window,document,location:{href:'https://claude.ai/chat/synthetic?x=";globalThis.injected=true;//`'},console:{clear(){clears++;logs.length=0;},log(value){logs.push(JSON.parse(value));}}});
+ return {context,window,logs,get clears(){return clears;}};
 }
 (async()=>{
  const f=environment();
@@ -176,6 +197,8 @@ function environment(){
   await pending;
   assert.equal(f.logs.at(-1).ok,true);
   assert.equal(f.logs.at(-1).sequence,index+1);
+  assert.equal(f.logs.length,1,'the current receipt survives clearing the source echo');
+  assert.equal(f.clears,index+1);
  }
  assert.equal(f.context.appliedData,'YWJj');
  assert.equal(f.context.injected,undefined,'hostile-looking URL remains string data');
@@ -184,6 +207,22 @@ function environment(){
  await vm.runInContext(codes[0],existing.context,{timeout:1000});
  assert.equal(existing.logs.at(-1).ok,false);
  assert.equal(existing.window.__cdt_fixture,original,'bootstrap refuses to overwrite an existing namespace');
+ for(const type of ['source','document']){
+  const invalid=environment();
+  if(type==='source')invalid.context.location.href='https://claude.ai/new';
+  else invalid.window.__claudePersianConsoleDocumentV1.document={};
+  await vm.runInContext(codes[0],invalid.context,{timeout:1000});
+  assert.equal(invalid.logs.at(-1).ok,false);
+  assert.equal(invalid.clears,0,'invalid context never clears console output');
+  assert.equal(invalid.window.__cdt_fixture,undefined);
+ }
+ for(const broken of [undefined,()=>{throw Error('SYNTHETIC_PRIVATE_ERROR');}]){
+  const invalid=environment();invalid.context.console.clear=broken;
+  await vm.runInContext(codes[0],invalid.context,{timeout:1000});
+  assert.equal(invalid.logs.at(-1).ok,false);
+  assert.equal(invalid.window.__cdt_fixture,undefined,'failed clear does not execute the body');
+  assert.equal(JSON.stringify(invalid.logs).includes('PRIVATE'),false);
+ }
  const changed=environment();
  await vm.runInContext(codes[0],changed.context,{timeout:1000});
  await vm.runInContext(codes[1],changed.context,{timeout:1000});

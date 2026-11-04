@@ -17,9 +17,10 @@ local function node(attrs)
 end
 local function fixture(options)
  scenarios=scenarios+1;options=options or{}
+ local sourceURL=options.sourceURL or 'https://claude.ai/chat/synthetic'
  local s={pid=123,foreground=999,focusWindow=20,returns=0,closes=0,tapStops=0,observerStops=0,version=0}
  local a={pid=function()return s.pid end,bundleID=function()return options.wrongBundle and 'other' or 'com.anthropic.claudefordesktop'end,path=function()return options.wrongPath and '/tmp/Claude.app' or '/Applications/Claude.app'end}
- local sourceArea=node({AXRole='AXWebArea',AXURL='https://claude.ai/chat/synthetic'})
+ local sourceArea=node({AXRole='AXWebArea',AXURL=sourceURL})
  local prompt=node({AXRole='AXTextArea',AXDescription='Console prompt',AXValue='\n',AXChildren={node({AXRole='AXGroup'})},AXFocused=false})
  local context=node({AXRole='AXButton',AXTitle='JavaScript context: top'})
  local source=node({AXRole='AXWindow',AXChildren={sourceArea}})
@@ -30,7 +31,7 @@ local function fixture(options)
   element.window=w;return w
  end
  local sourceWindow=window(10,'Synthetic chat',source)
- local toolsWindow=window(20,'Developer Tools - https://claude.ai/chat/synthetic',tools)
+ local toolsWindow=window(20,'Developer Tools - '..(options.toolsSourceURL or sourceURL),tools)
  local root=node({AXRole='AXApplication'})
  function a:allWindows()local out={sourceWindow};if s.tools then out[#out+1]=toolsWindow end;return out end
  local oldAttr=root.attributeValue
@@ -66,7 +67,7 @@ local function fixture(options)
  local handoff='{"marker":"CDT_DIRECT_HANDOFF","handoff":true}'
  local dispatch='{"marker":"CDT_DIRECT_RECEIPT","dispatch":true}'
  hs.json.decode=function(text)
-  if text==handoff then return {marker='CDT_DIRECT_HANDOFF',nonce=nonce,kind='chat',ok=not options.badProbe,documentId=documentId}end
+  if text==handoff then return {marker='CDT_DIRECT_HANDOFF',nonce=nonce,kind=options.probeKind or options.sourceKind or 'chat',ok=not options.badProbe,documentId=options.probeDocumentId or documentId}end
   if text==dispatch then return {marker='CDT_DIRECT_RECEIPT',nonce=nonce,sequence=1,documentId=options.wrongDocument and string.rep('c',32)or documentId,ok=true}end
   return nil
  end
@@ -74,7 +75,7 @@ local function fixture(options)
  local function addReceipt(text)tools.attrs.AXChildren[#tools.attrs.AXChildren+1]=node({AXRole='AXStaticText',AXValue=text})end
  return {s=s,hs=hs,adapter=adapter,area=sourceArea,prompt=prompt,context=context,tools=tools,source=source,
   handoff=handoff,dispatch=dispatch,addReceipt=addReceipt,
-  capture=function()return adapter.capture(10,'https://claude.ai/chat/synthetic')end,
+  capture=function()return adapter.capture(10,sourceURL,options.toolsSourceURL)end,
   bind=function(token)s.tools=true;addReceipt(handoff);return adapter.bind(token,20)end,
   event=function(pid)s.eventCallback({getProperty=function()return pid end})end}
 end
@@ -88,11 +89,17 @@ local handle=f.adapter.claim(ownership);check(type(handle)=='table','one-shot ow
 check(f.adapter.claim(ownership)==nil,'ownership handoff cannot be replayed')
 check(f.adapter.inspect(handle).documentId==documentId and f.adapter.inspect(handle).sourceWindowId==10,'native identity binds source and document receipt')
 check(f.adapter.promptValue(handle)=='','display LF is normalized only for empty prompt structure')
+check(f.adapter.writePrompt(handle,'','console.log(42)')=='pending'and not f.prompt.pending,'unfocused native editor cannot receive AXValue')
+check(f.adapter.focusPrompt(handle)=='pending','local focus request acknowledgement is not yet verified focus')
+check(f.adapter.writePrompt(handle,'','console.log(42)')=='pending'and not f.prompt.pending,'AXFocused alone is insufficient while application focus points elsewhere')
+f.s.localFocus=true
+check(f.adapter.focusPrompt(handle)==true,'local focus succeeds only when the exact prompt is the app focused element')
 check(f.adapter.writePrompt(handle,'','console.log(42)'),'native AX write accepts asynchronous update')
 check(f.adapter.promptValue(handle)=='','write acceptance does not claim an immediate echo')
 f.prompt.attrs.AXValue=f.prompt.pending
 check(f.adapter.promptValue(handle)=='console.log(42)','exact echo becomes readable later')
-check(f.adapter.focusPrompt(handle),'only local prompt focus requested')
+f.s.localFocus=false
+check(f.adapter.focusPrompt(handle)=='pending','local prompt focus is verified asynchronously without app activation')
 check(f.adapter.execute(handle,'console.log(42)')=='pending','local AX focus acknowledgement is verified asynchronously')
 f.s.localFocus=true
 check(f.adapter.execute(handle,'console.log(42)'),'targeted Return works while unrelated app remains foreground')
@@ -107,6 +114,17 @@ f=fixture();f.s.tools=true;check(f.capture()==nil,'capture refuses pre-existing 
 f=fixture();capture=f.capture();check(f.adapter.bind(capture,10)==nil,'source window cannot masquerade as new console')
 f=fixture();capture=f.capture();f.s.tools=true;check(f.adapter.bind(capture,20)==nil,'caller metadata cannot replace a real probe receipt')
 f=fixture({badProbe=true});capture=f.capture();check(f.bind(capture)==nil,'failed source probe does not mint ownership')
+f=fixture();capture=f.capture();f.s.tools=true
+local unverified,reason=f.adapter.bind(capture,20)
+check(unverified==nil and reason=='probe-unverified','missing receipt is distinct from an explicit probe rejection')
+check(f.s.closes==0 and not f.s.registrations and not f.s.tapActive and not f.s.observerActive,'missing receipt starts no monitoring or cleanup mutation')
+check(type(f.adapter.probeCode(capture))=='string','pending receipt preserves capture for the bootstrap coordinator')
+for _,options in ipairs({{badProbe=true},{probeKind='artifact'},{probeDocumentId='invalid'}})do
+ f=fixture(options);capture=f.capture();local rejected,why=f.bind(capture)
+ check(rejected==nil and why=='probe-rejected','negative kind-mismatched or invalid-document proof is rejected explicitly')
+ check(f.s.tools and f.s.closes==0 and not f.s.registrations and not f.s.tapActive and not f.s.observerActive,'rejected proof preserves tools and starts no monitoring')
+ check(type(f.adapter.probeCode(capture))=='string','rejected proof preserves capture for explicit coordinator cleanup')
+end
 f=fixture();capture=f.capture();f.s.tools=true;f.addReceipt(f.handoff);f.addReceipt(f.handoff);check(f.adapter.bind(capture,20)==nil,'duplicate bootstrap receipts are ambiguous')
 f=fixture();capture=f.capture();f.s.tools=true;f.prompt.attrs.AXValue='user text';f.addReceipt(f.handoff);check(f.adapter.bind(capture,20)==nil,'nonempty console cannot be handed off')
 f=fixture();capture=f.capture();f.area.attrs.AXURL='https://claude.ai/chat/changed';check(f.bind(capture)==nil,'source navigation before handoff invalidates capture')
@@ -136,6 +154,49 @@ end
 local function claimed(options)
  local f=fixture(options);local capture=f.capture();local ownership=f.bind(capture);local handle=f.adapter.claim(ownership);return f,handle
 end
+f,handle=claimed()
+local originalSet=f.prompt.setAttributeValue
+function f.prompt:setAttributeValue(name,value)
+ if name=='AXFocused'then return self end
+ return originalSet(self,name,value)
+end
+f.s.localFocus=true
+check(f.adapter.focusPrompt(handle)=='pending','app-focused element alone is insufficient until the prompt acknowledges AXFocused')
+check(f.adapter.writePrompt(handle,'','code')=='pending'and not f.prompt.pending,'unacknowledged prompt focus prevents AXValue writes')
+f.prompt.attrs.AXFocused=true
+check(f.adapter.focusPrompt(handle)==true and f.adapter.writePrompt(handle,'','code')==true,'both asynchronous focus acknowledgements permit writing')
+f.adapter.release(handle,false)
+
+for _,change in ipairs({'context','input','interaction'})do
+ f,handle=claimed();check(f.adapter.focusPrompt(handle)=='pending','waiting focus request stays pending')
+ if change=='context'then f.context.attrs.AXTitle='JavaScript context: changed'
+ elseif change=='input'then f.prompt.attrs.AXValue='user input'
+ else f.s.foreground=123;f.s.focusWindow=20;f.event(0)end
+ f.s.localFocus=true
+ check(f.adapter.writePrompt(handle,'','code')==false and not f.prompt.pending and f.s.returns==0,'changed '..change..' during focus wait refuses mutation')
+ f.adapter.release(handle,false)
+end
+
+f,handle=claimed();f.s.localFocus=true;f.prompt.attrs.AXFocused=true
+local originalRead=f.prompt.attributeValue;local focusReads=0
+function f.prompt:attributeValue(name)
+ if name=='AXFocused'then focusReads=focusReads+1;if focusReads==2 then self.attrs.AXFocused=false end end
+ return originalRead(self,name)
+end
+check(f.adapter.writePrompt(handle,'','code')=='pending'and not f.prompt.pending,'focus lost between verification and final write remains pending without mutation')
+f.adapter.release(handle,false)
+
+f,handle=claimed();f.s.foreground=123;f.s.focusWindow=20
+originalSet=f.prompt.setAttributeValue
+function f.prompt:setAttributeValue(name,value)
+ local result=originalSet(self,name,value)
+ if name=='AXFocused'then f.event(0)end
+ return result
+end
+check(f.adapter.focusPrompt(handle)==false,'external interaction during focus acknowledgement invalidates authorization')
+check(f.adapter.writePrompt(handle,'','code')==false and not f.prompt.pending and f.s.returns==0,'focus request cannot hide intervening console input')
+f.adapter.release(handle,false)
+
 f,handle=claimed();f.event(100);check(f.adapter.inspect(handle).interactionVersion==0,'unrelated foreground keyboard input does not block background dispatch')
 f.s.foreground=123;f.s.focusWindow=20;f.event(77)
 check(f.adapter.inspect(handle).interactionVersion==0,'own synthetic events do not look like user interaction')
@@ -194,20 +255,85 @@ for _,value in ipairs({'https://claude.ai/auth/callback','https://claude.ai/api/
  f=fixture();f.area.attrs.AXURL=value;check(f.adapter.capture(10,value)==nil,'native capture rejects unsupported source')
 end
 
+-- Child contexts remain anchored to the independently verified chat tools source.
+local parentURL='https://claude.ai/chat/parent-synthetic'
+local function childFixture(extra)
+ local options={sourceURL='about:srcdoc',toolsSourceURL=parentURL,sourceKind='document'}
+ for k,v in pairs(extra or{})do options[k]=v end
+ local value=fixture(options)
+ value.parent=node({AXRole='AXWebArea',AXURL=parentURL,AXChildren={value.area}})
+ value.source.attrs.AXChildren={value.parent}
+ value.context.attrs.AXTitle='JavaScript context: about:srcdoc'
+ return value
+end
+f=childFixture();capture=f.capture();check(type(capture)=='table','child capture proves target and parent in the same source window')
+ownership=f.bind(capture);handle=f.adapter.claim(ownership)
+check(type(handle)=='table' and f.adapter.inspect(handle).sourceURL=='about:srcdoc','parent-titled tools can hand off the verified child context')
+check(f.s.registrations==5,'child ownership watches target parent and tools lifecycles')
+f.adapter.release(handle,false)
+for _,childURL in ipairs({'https://claude.ai/code/artifact/synthetic','https://synthetic.frame.claudeusercontent.com/'})do
+ f=childFixture({sourceURL=childURL});check(type(f.capture())=='table','supported artifact child can use proven chat tools source')
+end
+f=childFixture();f.source.attrs.AXChildren={f.area};check(f.capture()==nil,'parent must exist in the same source window')
+f=childFixture();f.source.attrs.AXChildren={f.parent,node({AXRole='AXWebArea',AXURL=parentURL})};check(f.capture()==nil,'ambiguous chat parent refuses capture')
+for _,parent in ipairs({'https://claude.ai/code/artifact/synthetic','https://example.invalid/','https://claude.ai/auth/callback'})do
+ f=childFixture();check(f.adapter.capture(10,'about:srcdoc',parent)==nil,'unverified or non-chat tools parent is rejected')
+end
+f=fixture();check(f.adapter.capture(10,'https://claude.ai/chat/synthetic',parentURL)==nil,'chat targets cannot override their tools title')
+f=childFixture();capture=f.capture();f.parent.attrs.AXURL='https://claude.ai/chat/changed'
+check(f.bind(capture)==nil,'changed parent before bind refuses handoff')
+for _,change in ipairs({'url','replacement','ambiguous','missing'})do
+ f=childFixture();capture=f.capture();ownership=f.bind(capture);handle=f.adapter.claim(ownership)
+ if change=='url'then f.parent.attrs.AXURL='https://claude.ai/chat/changed'
+ elseif change=='replacement'then f.source.attrs.AXChildren={node({AXRole='AXWebArea',AXURL=parentURL,AXChildren={f.area}})}
+ elseif change=='ambiguous'then f.source.attrs.AXChildren[#f.source.attrs.AXChildren+1]=node({AXRole='AXWebArea',AXURL=parentURL})
+ else f.source.attrs.AXChildren={f.area}end
+ check(f.adapter.inspect(handle)==nil,'parent '..change..' invalidates child ownership')
+ check(not f.adapter.writePrompt(handle,'','code') and not f.adapter.release(handle,true),'unproven parent never authorizes write or close')
+ check(f.adapter.release(handle,false),'invalid child ownership releases tracking without UI mutation')
+end
+f=childFixture();capture=f.capture();ownership=f.bind(capture);handle=f.adapter.claim(ownership)
+f.s.observerCallback(nil,f.parent,'AXLoadComplete');check(f.adapter.inspect(handle)==nil,'parent reload invalidates child handoff')
+f.adapter.release(handle,false)
+for _,ordinal in ipairs({4,5})do
+ f=childFixture({registrationFailureAt=ordinal});capture=f.capture();check(f.bind(capture)==nil,'required child lifecycle registration refuses partial handoff')
+ check(f.s.tapStops==1 and f.s.observerStops==1 and f.s.closes==0,'failed child tracking releases monitors without closing tools')
+end
+
 -- Validate the actual bootstrap JavaScript in Node, with no system/app APIs.
 f=fixture();capture=f.capture();local probeCode=f.adapter.probeCode(capture)
 local files={}
 local function file(value)local name=os.tmpname();local out=assert(io.open(name,'wb'));out:write(value);out:close();files[#files+1]=name;return name end
 local probeFile=file(probeCode)
+f=childFixture();capture=f.capture();local childProbeFile=file(f.adapter.probeCode(capture))
+local variants={}
+for _,entry in ipairs({
+ {'https://claude.ai/chat/synthetic','chat'},
+ {'https://claude.ai/code/artifact/synthetic','artifact'},
+ {'https://synthetic.frame.claudeusercontent.com/','artifact-content'},
+ {'file:///Applications/Claude.app/Contents/Resources/app.asar/.vite/renderer/main_window/index.html','shell'},
+ {'file:///Applications/Claude.app/Contents/Resources/app.asar/.vite/renderer/quick_window/index.html','shell'},
+ {'file:///Applications/Claude.app/Contents/Resources/app.asar/.vite/renderer/about_window/index.html','shell'},
+ {'file:///Applications/Claude.app/Contents/Resources/app.asar/.vite/renderer/find_in_page/index.html','shell'},
+ {'file:///Applications/Claude.app/Contents/Resources/app.asar/.vite/renderer/main_window/%E0%A4%A.html','shell'}
+})do
+ f=fixture({sourceURL=entry[1],sourceKind=entry[2]});capture=f.capture()
+ check(type(capture)=='table','native probe classification fixture has an admissible capture URL')
+ variants[#variants+1]=entry[1]..'\t'..entry[2]..'\t'..file(f.adapter.probeCode(capture))
+end
+local variantFile=file(table.concat(variants,'\n'))
 local harness=file([====[
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const {webcrypto}=require('node:crypto');
 const code=fs.readFileSync(process.argv[2],'utf8');new vm.Script(code);
+const childCode=fs.readFileSync(process.argv[3],'utf8');new vm.Script(childCode);
+const {consoleFrame}=require(process.argv[4]);
+const {classifyFrame}=require(require('node:path').join(require('node:path').dirname(process.argv[4]),'renderer-source.cjs'));
 function fixture(href='https://claude.ai/chat/synthetic'){
- const document={},window={},logs=[];
- const context=vm.createContext({document,window,location:{href},crypto:webcrypto,console:{log(value){logs.push(JSON.parse(value));}}});
- return {document,window,logs,context};
+ const document={},window={},logs=[],location={href};
+ const context=vm.createContext({document,window,location,URL,crypto:webcrypto,console:{log(value){logs.push(JSON.parse(value));}}});
+ return {document,window,logs,location,context};
 }
 const fresh=fixture();vm.runInContext(code,fresh.context,{timeout:1000});
 assert.equal(fresh.logs[0].ok,true);assert.match(fresh.logs[0].documentId,/^[a-f0-9]{32}$/);
@@ -220,11 +346,69 @@ const foreign=fixture();foreign.window.__claudePersianConsoleDocumentV1={documen
 const original=foreign.window.__claudePersianConsoleDocumentV1;vm.runInContext(code,foreign.context,{timeout:1000});
 assert.equal(foreign.logs[0].ok,false);assert.equal(foreign.window.__claudePersianConsoleDocumentV1,original);
 assert.deepEqual(Object.keys(fresh.logs[0]).sort(),['documentId','kind','marker','nonce','ok']);
+assert.equal(before.identity,JSON.stringify(consoleFrame(fresh.location)));
+const missingIdentity=fixture();missingIdentity.window.__claudePersianConsoleDocumentV1={document:missingIdentity.document,id:'b'.repeat(32)};
+const missingRecord=missingIdentity.window.__claudePersianConsoleDocumentV1;
+vm.runInContext(code,missingIdentity.context,{timeout:1000});
+assert.equal(missingIdentity.logs[0].ok,false);assert.equal(missingIdentity.window.__claudePersianConsoleDocumentV1,missingRecord);
+// Fresh child identities use the same bounded ancestor-origin shape as production.
+const child=fixture('about:srcdoc');child.location.ancestorOrigins=Array.from({length:16},(_,i)=>i===0?'https://trusted.frame.claudeusercontent.com':`https://ancestor-${i}.example.invalid`);
+vm.runInContext(childCode,child.context,{timeout:1000});
+assert.equal(child.logs[0].ok,true);assert.equal(child.logs[0].kind,'document');
+const childRecord=child.window.__claudePersianConsoleDocumentV1;
+assert.equal(childRecord.identity,JSON.stringify(consoleFrame(child.location)));
+let ancestry=JSON.parse(childRecord.identity),depth=0;while(ancestry.parent){depth++;ancestry=ancestry.parent;}assert.equal(depth,12);
+vm.runInContext(childCode,child.context,{timeout:1000});assert.equal(child.window.__claudePersianConsoleDocumentV1,childRecord);
+// Reuse a record created with the actual production reader, not only this probe.
+const stable=fixture('about:srcdoc');stable.location.ancestorOrigins=['https://trusted.frame.claudeusercontent.com','https://outer.example.invalid'];
+const stableRecord={document:stable.document,identity:JSON.stringify(consoleFrame(stable.location)),id:'b'.repeat(32)};
+stable.window.__claudePersianConsoleDocumentV1=stableRecord;
+vm.runInContext(childCode,stable.context,{timeout:1000});assert.equal(stable.logs[0].ok,true);assert.equal(stable.window.__claudePersianConsoleDocumentV1,stableRecord);
+stable.location.ancestorOrigins[0]='https://changed.frame.claudeusercontent.com';
+vm.runInContext(childCode,stable.context,{timeout:1000});assert.equal(stable.logs[1].ok,false);assert.equal(stable.window.__claudePersianConsoleDocumentV1,stableRecord);
+// Missing, throwing, and partly readable metadata have the identical fallback.
+for(const configure of [()=>{},l=>{l.ancestorOrigins=null;},
+ l=>Object.defineProperty(l,'ancestorOrigins',{get(){throw Error('synthetic');}}),
+ l=>{l.ancestorOrigins={get length(){throw Error('synthetic');}};},
+ l=>{l.ancestorOrigins={length:3,0:'https://first.example.invalid',get 1(){throw Error('synthetic');}};}]){
+ const value=fixture('about:srcdoc');configure(value.location);
+ const expected=JSON.stringify(consoleFrame(value.location));
+ vm.runInContext(childCode,value.context,{timeout:1000});assert.equal(value.logs[0].ok,false);
+ assert.equal(value.window.__claudePersianConsoleDocumentV1,undefined);
+ assert.equal(JSON.parse(expected).parent,null);
+ const preserved={document:value.document,identity:expected,id:'c'.repeat(32)};
+ value.window.__claudePersianConsoleDocumentV1=preserved;
+ vm.runInContext(childCode,value.context,{timeout:1000});assert.equal(value.logs[1].ok,false);
+ assert.equal(value.window.__claudePersianConsoleDocumentV1,preserved);
+}
+const ordinary=fixture();Object.defineProperty(ordinary.location,'ancestorOrigins',{get(){throw Error('must not read');}});
+vm.runInContext(code,ordinary.context,{timeout:1000});assert.equal(ordinary.logs[0].ok,true);
+assert.equal(ordinary.window.__claudePersianConsoleDocumentV1.identity,JSON.stringify(consoleFrame(ordinary.location)));
+// Compare the generated classifier with the production contract for all five kinds.
+for(const line of fs.readFileSync(process.argv[5],'utf8').split('\n')){
+ const [href,expectedKind,filename]=line.split('\t');
+ const value=fixture(href),generated=fs.readFileSync(filename,'utf8');new vm.Script(generated);
+ const actualKind=classifyFrame(consoleFrame(value.location));
+ vm.runInContext(generated,value.context,{timeout:1000});
+ assert.equal(value.logs[0].ok,actualKind===expectedKind);
+ assert.equal(Boolean(value.window.__claudePersianConsoleDocumentV1),actualKind===expectedKind);
+}
+for(const origins of [[],['https://claude.ai'],['http://untrusted.frame.claudeusercontent.com'],
+ ['https://untrusted.frame.claudeusercontent.com.evil.invalid'],['malformed','https://trusted.frame.claudeusercontent.com'],
+ ['https://trusted.frame.claudeusercontent.com'],['https://outer.example.invalid','https://trusted.frame.claudeusercontent.com'],
+ Array.from({length:13},(_,i)=>i===12?'https://trusted.frame.claudeusercontent.com':'https://outer.example.invalid')]){
+ const value=fixture('about:srcdoc');value.location.ancestorOrigins=origins;
+ const actualKind=classifyFrame(consoleFrame(value.location));
+ vm.runInContext(childCode,value.context,{timeout:1000});
+ assert.equal(value.logs[0].ok,actualKind==='document');
+ assert.equal(Boolean(value.window.__claudePersianConsoleDocumentV1),actualKind==='document');
+}
 ]====])
 local function shellQuote(v)return "'"..v:gsub("'","'\\''").."'"end
-local nodeOK=os.execute('node '..shellQuote(harness)..' '..shellQuote(probeFile))
+local project=arg[1]:match('^(.*)/integrations/hammerspoon/[^/]+$') or '.'
+local nodeOK=os.execute('node '..shellQuote(harness)..' '..shellQuote(probeFile)..' '..shellQuote(childProbeFile)..' '..shellQuote(project..'/lib/persian/console-payload.cjs')..' '..shellQuote(variantFile))
 for _,name in ipairs(files)do os.remove(name)end
-check(nodeOK==true or nodeOK==0,'native bootstrap JS syntax URL guard namespace ownership and receipt pass in Node')
+check(nodeOK==true or nodeOK==0,'native bootstrap JS production frame identity ancestry ownership and receipts pass in Node')
 
 print(string.format('direct native: %d assertions, %d scenarios',assertions,scenarios))
 return {ok=true,assertions=assertions,scenarios=scenarios}

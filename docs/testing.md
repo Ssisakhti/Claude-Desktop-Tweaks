@@ -22,6 +22,12 @@ python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hamme
 
 These suites do not operate the live interface. They use synthetic fixtures to check frame discovery, context guards, exact source verification, clipboard protection, failure handling, and cleanup. Passing them does not establish every behavior of the real app. The font check verifies the embedded official variable WOFF2 and its pinned SHA-256. Weights 100–900 use one font face.
 
+### Clean installation checks
+
+A separate temporary-home check exercised preview, installation, repeated installation, removal, backup restoration, unrelated configuration preservation, private runtime permissions, and installation from the packed distribution. All 32 checks passed. The packed distribution retained the variable font and license files, omitted the old TTFs, and installed only the stable runtime. Installed runtime files remained available after the source directory was moved. Dependencies for this check came from the existing local installation; this was not a new registry download or a first-run macOS permission test.
+
+A live-profile check also stopped the integration and confirmed completed cleanup, removed its configuration block, verified the remaining configuration byte for byte, loaded the configuration with no integration present, and installed again. A subsequent preview reported no changes. Existing macOS permissions and retained runtime files were reused; this does not claim a new operating-system profile.
+
 ## Live app checks
 
 Record live results separately. Save documents and drafts before testing. An installed configuration, an old status file, or a controller left by another run is not evidence of an independent successful test.

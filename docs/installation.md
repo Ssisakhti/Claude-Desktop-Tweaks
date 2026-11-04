@@ -25,6 +25,8 @@ node bin/claude-desktop-tweaks.cjs --install
 
 Keep the configuration backup path printed by the installer, then choose **Reload Config** in Hammerspoon. The installer copies two Lua modules and the command bundle into a private runtime directory. The installed watcher does not depend on the source checkout remaining in place. Runtime files are retained so a configuration backup can still refer to them.
 
+If no Hammerspoon configuration existed, the installer reports `backup: null`; there is no earlier configuration to restore.
+
 After reloading, bring Claude to the front and leave the keyboard and mouse idle for at least two seconds. A brief console transaction can occur during the first application.
 
 Installation prepares the watcher; it does not prove that every app frame has been processed. The official app must be active and its interface ready. User input or developer tools already open can delay a transaction. The tool does not send messages, submit comments, or edit document content.
@@ -92,3 +94,7 @@ For the native experiment, create the adapter with `native.new(hs)`, call `captu
 The stable watcher waits for the main guest content at startup instead of targeting a temporary local `main_window` shell. A nonmodal native dialog can be excluded from console candidates only after a complete bounded inspection proves it contains no web area and exactly one other candidate has the expected console title and official PID. The classification is rechecked until source ownership is proven. Modal, unknown, truncated, and additional console candidates still stop the transaction. An excluded dialog is never targeted or closed.
 
 Abort an unclaimed native experiment with `discard(token)` so its capture/ownership state is released. The native adapter's lifecycle watcher registration and event capabilities must all succeed before a handoff is usable. Stop the default watcher and verify its cleanup before any live experiment.
+
+For a child frame, `capture(sourceWindowId, expectedURL, toolsSourceURL)` can bind the child to its chat parent's tools title. Both exact, unique accessibility elements must exist in the same official window and remain unchanged. The source probe independently classifies the actual browser frame, including bounded ancestor origins for `about:srcdoc`, before creating or reusing a document identity. An existing identity with a different frame is preserved and rejected.
+
+`buildDirectPlan({namespace, nonce, kind})` in `lib/persian/direct-plan.cjs` creates a complete experimental font/controller plan using the same production modules. The current variable-font plan has 33 commands, each below the direct transport limit. It transfers font bytes as data and trusted repository functions as syntax, without `eval` or `Function`. Each command checks namespace ownership; the final command verifies the actual production controller's health. Cleanup removes only temporary helpers and font chunks, retaining a successful controller. This builder does not open tools or install a startup hook.

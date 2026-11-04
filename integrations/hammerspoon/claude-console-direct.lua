@@ -4,6 +4,8 @@
 -- Adapter methods must target the handed-off console atomically, without activating apps:
 -- claim(capability), inspect(handle), promptValue(handle), writePrompt(handle,expected,value),
 -- focusPrompt(handle), execute(handle,expected), receipt(handle,nonce,sequence), release(handle,close).
+-- focusPrompt and writePrompt may return 'pending' while local focus acknowledgement
+-- is incomplete. A focus request alone must never authorize an AXValue write.
 -- inspect returns owned, pid, bundle, path, sourceWindowId, toolsWindowId, contextId,
 -- documentId, sourceURL, and interactionVersion. interactionVersion tracks external console interaction,
 -- not unrelated keyboard/mouse activity in another app. Claim must verify a fresh console,
@@ -92,7 +94,9 @@ function M.new(config,adapter)
    ..'const valid=()=>location.href==='..quote(tx.identity.sourceURL)..'&&document===d&&window.__claudePersianConsoleDocumentV1===r&&!!r&&r.document===document&&r.id==='..quote(tx.identity.documentId)..';'
   local receipt='{marker:"CDT_DIRECT_RECEIPT",nonce:'..quote(tx.nonce)..',sequence:'..sequence..',documentId:'..quote(tx.identity.documentId)
   return '(async()=>{'..header..'if(!valid()){console.log(JSON.stringify('..receipt..',ok:false}));return;}'
-   ..'try{await(async()=>{'..body..'})();console.log(JSON.stringify('..receipt..',ok:valid()}));}'
+   -- Only the handed-off console reaches this guard. Remove the source echo
+   -- before it can consume the bounded AX traversal; retain the next receipt.
+   ..'try{if(typeof console.clear!=="function")throw Error("console-clear-failed");console.clear();await(async()=>{'..body..'})();console.log(JSON.stringify('..receipt..',ok:valid()}));}'
    ..'catch(e){console.log(JSON.stringify('..receipt..',ok:false}));}})()'
  end
  local function prepare(body)
@@ -127,7 +131,14 @@ function M.new(config,adapter)
   local value=adapter.promptValue(tx.handle)
   if tx.stage=='write' then
    if value~='' then return fail('prompt-not-empty')end
-   if adapter.writePrompt(tx.handle,'',tx.code)~=true then return fail('write-refused')end
+   -- AXValue can echo without updating the inactive editor's internal model.
+   -- Verify local prompt focus before every write, without activating the app.
+   local focused=adapter.focusPrompt(tx.handle)
+   if focused=='pending'then last.phase='waiting-for-local-focus';return snapshot()end
+   if focused~=true then return fail('prompt-focus-refused')end
+   local written=adapter.writePrompt(tx.handle,'',tx.code)
+   if written=='pending'then last.phase='waiting-for-local-focus';return snapshot()end
+   if written~=true then return fail('write-refused')end
    tx.promptPending=true;tx.stage='echo';last.phase=tx.cleaning and 'cleanup' or 'waiting-for-echo'
   elseif tx.stage=='echo' then
    -- A write acknowledgement is not evidence that AXValue has changed yet.
@@ -135,7 +146,9 @@ function M.new(config,adapter)
     if value~='' then return fail('prompt-changed')end
     return snapshot()
    end
-   if adapter.focusPrompt(tx.handle)~=true then return fail('prompt-focus-refused')end
+   local focused=adapter.focusPrompt(tx.handle)
+   if focused=='pending'then last.phase='waiting-for-local-focus';return snapshot()end
+   if focused~=true then return fail('prompt-focus-refused')end
    tx.stage='execute';last.phase=tx.cleaning and 'cleanup' or 'waiting-for-local-focus'
   elseif tx.stage=='execute' then
    if value~=tx.code then return fail('prompt-changed')end
