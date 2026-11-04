@@ -8,8 +8,9 @@ const { KINDS, classifyFrame } = require('../lib/persian/renderer-source.cjs');
 const { CONTROLLER_REVISION } = require('../lib/persian/controller.cjs');
 const { consoleFrame, runConsole, buildConsoleProbe, buildConsolePayload } = require('../lib/persian/console-payload.cjs');
 const nonce = 'synthetic-request-012345';
-const request = { kind: 'chat', nonce, weights: 9, revision: CONTROLLER_REVISION };
-const healthy = { kind: 'chat', revision: CONTROLLER_REVISION, fontLoaded: true, stylesAttached: true, stylesLoaded: true, attachedWeights: 9 };
+const fontCount = require('../lib/persian/fonts.json').length;
+const request = { kind: 'chat', nonce, weights: fontCount, revision: CONTROLLER_REVISION };
+const healthy = { kind: 'chat', revision: CONTROLLER_REVISION, fontLoaded: true, stylesAttached: true, stylesLoaded: true, attachedWeights: fontCount };
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 function runner({ url = 'https://claude.ai/new', origins = [], old, install = async () => healthy } = {}) {

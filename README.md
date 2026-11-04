@@ -8,7 +8,7 @@ The tweaks run in memory inside the official app. Claude's files, signature, ASA
 
 ## Features
 
-- Nine Estedad font weights are included locally. No font download is needed at runtime.
+- One official Estedad variable WOFF2 is included locally and covers weights 100–900. No font download is needed at runtime.
 - Each paragraph gets a direction based on its text, including Persian paragraphs that start with an English word.
 - Supported chat, document, and comment frames are handled separately.
 - Text inside table cells is handled without changing column order or control layout.
@@ -27,7 +27,7 @@ node bin/claude-desktop-tweaks.cjs --dry-run
 node bin/claude-desktop-tweaks.cjs --install
 ```
 
-In Hammerspoon, choose **Reload Config**. Keep the configuration backup path printed by the installer. See the [installation guide](docs/installation.md) before replacing an active installation.
+In Hammerspoon, choose **Reload Config**. Bring Claude to the front and leave the mouse and keyboard idle for at least two seconds. Keep the configuration backup path printed by the installer. See the [installation guide](docs/installation.md) before replacing an active installation.
 
 The installer copies the runtime to a private Hammerspoon directory. Once installed, the watcher does not depend on the source checkout remaining in place.
 
@@ -35,7 +35,7 @@ The installer copies the runtime to a private Hammerspoon directory. Once instal
 
 Only macOS and the official Claude Desktop app are supported. Hammerspoon controls Claude's interface, so the console may appear briefly. User input, an unverified context, or developer tools already open can delay or stop a transaction.
 
-A cold start of the final runtime in a completely new app process has not yet been verified in a live test. A reload that produces no useful accessibility event may remain undetected until you return to the window. Native Quick Entry without an HTML frame is outside the tool's scope. A second simultaneous native window for ordinary chat has not been verified. See [testing and limitations](docs/testing.md).
+The latest local cold-start check completed on the first attempt after waiting for guest content. A separate four-frame document check also completed without a retry. These local checks do not guarantee zero-retry behavior for every launch or app version. Chat navigation reuses the in-page controller when the frame layout is unchanged. Reloads without an observed loading or frame-layout change may need **Reapply in Claude in 3 seconds** from the **CDT** menu. Native Quick Entry without an HTML frame is outside the tool's scope. A second simultaneous native window for ordinary chat has not been verified. See [testing and limitations](docs/testing.md).
 
 ## Remove the integration
 
@@ -53,7 +53,7 @@ npm run check:fonts
 npm audit --audit-level=low
 ```
 
-Run both Lua suites as well; the commands are in the [testing guide](docs/testing.md). Automated tests and live app checks are reported separately.
+Run the Lua suites as well; the commands are in the [testing guide](docs/testing.md). Automated tests and live app checks are reported separately.
 
 ## Licenses
 

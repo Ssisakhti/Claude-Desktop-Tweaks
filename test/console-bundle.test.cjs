@@ -102,7 +102,7 @@ test('Bundle templates parse and run in the real console return-await wrapper', 
   assert.doesNotThrow(() => new vm.Script(driverApplyWrapper(payloadSource(kind, id), kind, id)), kind);
  }
  const result = await vm.runInContext(driverApplyWrapper(payloadSource('chat', before.documentId), 'chat', before.documentId), f.context);
- assert.equal(result.ok, true); assert.equal(result.attachedWeights, 9);
+ assert.equal(result.ok, true); assert.equal(result.attachedWeights, 1);
  f.context.window.__claudePersianControllerV2.dispose();
  const mismatch = await vm.runInContext(driverProbeWrapper(probeSource(f.context.location.href), f.context.location.href + '/different'), f.context);
  assert.equal(mismatch.reason, 'source-mismatch');
@@ -144,10 +144,10 @@ test('Bundle probes and payloads repair the same document without eval or networ
  const before = await vm.runInContext(probeSource(f.context.location.href), f.context);
  assert.equal(before.ok, true); assert.equal(before.healthy, false);
  const result = await vm.runInContext(payloadSource('chat', before.documentId), f.context);
- assert.equal(result.ok, true); assert.equal(result.attachedWeights, 9); assert.equal(result.stylesLoaded, true);
+ assert.equal(result.ok, true); assert.equal(result.attachedWeights, 1); assert.equal(result.stylesLoaded, true);
  const after = await vm.runInContext(probeSource(f.context.location.href), f.context);
  assert.equal(after.healthy, true); assert.equal(after.documentId, before.documentId);
- assert.equal(f.document.documentElement.outerHTML, baseline); assert.equal(f.faces.size, 9);
+ assert.equal(f.document.documentElement.outerHTML, baseline); assert.equal(f.faces.size, 1);
  f.context.window.__claudePersianControllerV2.dispose();
  assert.equal(f.faces.size, 0); assert.equal(f.document.adoptedStyleSheets.length, 0); assert.equal(f.timers.size, 0);
 });

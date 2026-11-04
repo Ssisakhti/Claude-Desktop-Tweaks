@@ -101,7 +101,7 @@ function fixture({ gate = null, failWeight = null, directionRegression = false, 
 
 test('Snapshots and standalone toString functions match the module revision',async()=>{
  const f=fixture();
- assert.equal(CONTROLLER_REVISION,3);
+ assert.equal(CONTROLLER_REVISION,5);
  assert.equal(installController.revision,CONTROLLER_REVISION);
  assert.equal(f.apply.revision,CONTROLLER_REVISION);
  const serialized=vm.runInContext('('+f.apply.toString()+')',f.context);
@@ -110,6 +110,18 @@ test('Snapshots and standalone toString functions match the module revision',asy
  assert.equal(installed.revision,CONTROLLER_REVISION);
  assert.equal(f.window[key].snapshot().revision,CONTROLLER_REVISION);
  assert.equal(installed.healthy,true);
+});
+
+test('Load the official variable weight range as one face',async()=>{
+ const f=fixture();
+ const variable=require('../lib/persian/fonts.json');
+ assert.equal(variable.length,1);
+ assert.equal(variable[0].weight,'100 900');
+ const installed=await f.apply({kind:'chat'},variable,f.scope,f.bidi,f.nord);
+ assert.equal(installed.healthy,true);
+ assert.equal(installed.attachedWeights,1);
+ assert.equal(f.state.faces[0].weight,'100 900');
+ assert.deepEqual([...installed.weights],['100 900']);
 });
 
 test('Dispose healthy older controllers before installing the timer-enabled revision',async()=>{

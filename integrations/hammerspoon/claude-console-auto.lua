@@ -51,12 +51,13 @@ end
 
 function M.new(config,adapter,driver)
   local idle,debounce,health,retry=settings(config)
+  local recoveryOnActivation=config.recoveryOnActivation==true
   assert(driver and type(driver.begin)=='function' and type(driver.snapshot)=='function','driver required')
   local running,attention,phase=true,false,'waiting-for-focus'
   local pid,cache,job,stopObserving=nil,{},nil,nil
   local foregroundWindow,activation=nil,0
   local driverStopFailed=false
-  local lastApplied,lastCompleted
+  local lastApplied,lastCompleted,lastFailure
   local function kindCounts(value)
     if type(value)~='table' then return nil end
     local out={}
@@ -75,13 +76,66 @@ function M.new(config,adapter,driver)
     end
     return out
   end
-  local lastBeginReason
+  local lastBeginReason,lastScanReason
   local beginReasons={}
   for _,reason in ipairs({'busy','stopped','invalid-request','invalid-source','target-not-focused','existing-tools-left-untouched',
     'target-missing','clipboard-multiple-items-or-unavailable','clipboard-changed','clipboard-unavailable','clipboard-format-unavailable',
     'invalid-or-reused-nonce','payload-unavailable','probe-unavailable','input-monitor-unavailable','adapter-failed'})do beginReasons[reason]=true end
+  -- Keep diagnostic values to protocol constants, never arbitrary exception text.
+  local phases,phaseNames={},{'idle','begin','coordinator','open','await-tools','open-contexts','select-context',
+    'await-context','scan-list','scan-contexts','focus-prompt','paste','execute','copy-select','copy-copy','copy-wait',
+    'copy-collapse','copy-confirm','execute-copied','await-result','cleanup','complete','failure','cancelled',
+    'waiting-for-contexts','waiting-for-prompt','waiting-for-tools-focus'}
+  for _,name in ipairs(phaseNames)do phases[name]=true end
+  local failureReasons={}
+  for reason in pairs(beginReasons)do failureReasons[reason]=true end
+  for _,reason in ipairs({'driver-begin-failed','driver-failed','ambiguous-tools','application-failed','cancelled',
+    'clipboard-copy-conflict','clipboard-write-failed','context-ambiguous-or-missing','context-changed','context-prefix-ambiguous',
+    'context-probe-failed','context-select-failed','contexts-dismiss-failed','contexts-menu-unavailable','context-button-open-timeout',
+    'copied-source-mismatch','copied-source-unavailable','copy-collapse-failed','copy-collapse-unverified','copy-request-failed',
+    'copy-select-failed','copy-timeout','duplicate-context','execute-failed','paste-failed','paste-not-verified',
+    'probe-result-invalid','prompt-focus-changed','prompt-focus-failed','prompt-not-empty','result-mismatch',
+    'source-probe-failed','source-unverified','too-many-contexts','tools-candidate-changed','tools-open-failed',
+    'tools-process-mismatch','tools-title-mismatch','tools-unverified','user-activity','focus-changed','process-changed',
+    'timeout','tools-changed'})do failureReasons[reason]=true end
+  failureReasons['clipboard-changed-or-restore-failed']=true
+  failureReasons['tools-cleanup-failed']=true
+  local function seconds(value)
+    if type(value)=='number' and value==value and value>=0 and value<=3600 then return math.floor(value*1000+0.5)/1000 end
+  end
+  local function timings(result)
+    local out={}
+    if type(result)~='table' then return out end
+    out.elapsedSeconds=seconds(rawget(result,'elapsedSeconds'))
+    local values=rawget(result,'phaseDurations')
+    if type(values)=='table' then
+      local durations={}
+      for _,name in ipairs(phaseNames)do
+        local duration=seconds(rawget(values,name));if duration then durations[name]=duration end
+      end
+      if next(durations)then out.phaseDurations=durations end
+    end
+    return out
+  end
+  local function recordFailure(result,now,activeJob,stage)
+    result=type(result)=='table' and result or {}
+    local reason,phaseName=rawget(result,'reason'),rawget(result,'failurePhase') or rawget(result,'phase')
+    local failure=timings(result)
+    failure.reason=failureReasons[reason] and reason or 'driver-failed'
+    failure.phase=phases[phaseName] and phaseName or 'failure'
+    failure.stage=stage
+    if not failure.elapsedSeconds and activeJob and type(now)=='number' then failure.elapsedSeconds=seconds(now-activeJob.startedAt)end
+    for _,key in ipairs({'applied','skipped','contexts','copyVerifications'})do
+      local value=rawget(result,key)
+      if type(value)=='number' and value>=0 and value<=10000 and value%1==0 then failure[key]=value end
+    end
+    for _,key in ipairs({'cleanupRequired','clipboardRestored','toolsClosed'})do
+      if type(rawget(result,key))=='boolean' then failure[key]=rawget(result,key)end
+    end
+    lastFailure=failure
+  end
   local counts={started=0,completed=0,failed=0,skipped=0,windows=0,incompleteWindows=0,processChanges=0,observerFailures=0,
-    layoutEvents=0,loadEvents=0,metadataEvents=0,focusEvents=0,fingerprintChanges=0,identityCoalesced=0,metadataScans=0,healthScans=0,eventScans=0,
+    layoutEvents=0,loadEvents=0,metadataEvents=0,focusEvents=0,fingerprintChanges=0,identityCoalesced=0,quietNavigations=0,metadataScans=0,healthScans=0,manualScans=0,eventScans=0,
     titledTools=0,hiddenTitledTools=0,embeddedToolsVisible=0,embeddedToolsHidden=0,embeddedToolsUnknown=0,
     sourceCandidates=0,ambiguousSources=0,AXrootsFocusedMismatch=0}
   local function snapshot()
@@ -104,10 +158,10 @@ function M.new(config,adapter,driver)
     if ok and type(result)=='table' then
       lastDriver.appliedKinds=kindCounts(result.appliedKinds)
       lastDriver.probedKinds=kindCounts(result.probedKinds)
-      for _,key in ipairs({'phase','reason','failurePhase'})do
-        local value=result[key]
-        if type(value)=='string' and #value<=80 and value:match('^[%w_-]+$') then lastDriver[key]=value end
-      end
+      if phases[result.phase] then lastDriver.phase=result.phase end
+      if phases[result.failurePhase] then lastDriver.failurePhase=result.failurePhase end
+      if failureReasons[result.reason] then lastDriver.reason=result.reason end
+      for key,value in pairs(timings(result))do lastDriver[key]=value end
       for _,key in ipairs({'ok','cleanupRequired','toolsClosed','clipboardRestored','toolsSamePID','toolsTitleMatch','focusIsSource','focusIsTools','frontmost','focusedWindowPresent','tracking','pastePromptFocused','pasteComparisonTruncated','pasteTransformsCompared','pasteEqualAfterTrailingLF','pasteEqualAfterLineEndSpaces'})do
         if type(result[key])=='boolean' then lastDriver[key]=result[key] end
       end
@@ -124,8 +178,8 @@ function M.new(config,adapter,driver)
         if type(value)=='number' and value>=0 and value<=65536 and value%1==0 then lastDriver[key]=value end
       end
     end
-    return {running=running,phase=phase,attentionRequired=attention or cleanupRequired and not cleanupPending,counts=copy,
-      cleanupPending=cleanupPending,cleanupRequired=cleanupRequired,lastDriver=lastDriver,lastBeginReason=lastBeginReason,lastApplied=appliedCopy,lastCompleted=completedCopy}
+    return {running=running,phase=phase,recoveryOnActivation=recoveryOnActivation,attentionRequired=attention or cleanupRequired and not cleanupPending,counts=copy,
+      cleanupPending=cleanupPending,cleanupRequired=cleanupRequired,lastDriver=lastDriver,lastFailure=receiptCopy(lastFailure),lastBeginReason=lastBeginReason,lastScanReason=lastScanReason,lastApplied=appliedCopy,lastCompleted=completedCopy}
   end
   local function markDirty(id,event)
     if not running then return end
@@ -136,11 +190,16 @@ function M.new(config,adapter,driver)
     -- Our layout changes do not prove a new document. The adapter already invalidated metadata.
     if event=='AXLayoutChanged' then counts.layoutEvents=counts.layoutEvents+1;return end
     if event=='AXUIElementDestroyed' or event=='AXWindowCreated' then counts.metadataEvents=counts.metadataEvents+1;return end
-    if event=='AXLoadComplete' then counts.loadEvents=counts.loadEvents+1 end
+    -- AX load events also occur during in-document chat navigation. Passive
+    -- frame metadata decides whether recovery is needed in quiet mode.
+    if event=='AXLoadComplete' then
+      counts.loadEvents=counts.loadEvents+1
+      if not recoveryOnActivation then return end
+    end
     local now=adapter.now()
     for key,entry in pairs(cache)do
       if id==nil or key==id then
-        entry.dirty=true;entry.changedAt=now;entry.generation=(entry.generation or 0)+1;entry.reason='event'
+        entry.dirty=true;entry.changedAt=now;entry.generation=(entry.generation or 0)+1;entry.reason=event=='manual' and 'manual' or 'event'
         if event=='AXLoadComplete' then entry.hardGeneration=(entry.hardGeneration or 0)+1 end
       end
     end
@@ -164,8 +223,9 @@ function M.new(config,adapter,driver)
       if pid~=nil then counts.processChanges=counts.processChanges+1 end
       pid,cache,job,attention=nextPID,{},nil,false
       foregroundWindow,activation=nil,0
-      lastApplied,lastCompleted=nil,nil
+      lastApplied,lastCompleted,lastFailure=nil,nil,nil
       lastBeginReason=nil
+      lastScanReason=nil
       counts.windows=0;counts.incompleteWindows=0
     end
     if job then
@@ -177,6 +237,7 @@ function M.new(config,adapter,driver)
         local entry=cache[job.windowId]
         if result.ok==true and result.phase=='complete' then
           counts.completed=counts.completed+1
+          if entry then entry.confirmed=true end
           lastCompleted={processId=pid,windowId=job.windowId,scan=counts.completed,sourceKind=job.kind,
             appliedKinds=kindCounts(result.appliedKinds),probedKinds=kindCounts(result.probedKinds)}
             for _,key in ipairs({'applied','skipped','contexts','copyVerifications'})do
@@ -196,6 +257,7 @@ function M.new(config,adapter,driver)
           end
           phase='waiting-for-idle'
         else
+          recordFailure(result,now,job,'transaction')
           if entry then fail(entry,now) else counts.failed=counts.failed+1 end
           if result.cleanupRequired then attention=true;phase='attention-required' else phase='retry-backoff' end
         end
@@ -231,10 +293,16 @@ function M.new(config,adapter,driver)
           local entry=cache[window.id]
           if not entry then
             entry={sourceURL=window.sourceURL,fingerprint=window.fingerprint,structure=window.structureFingerprint,
+              layout=window.layoutFingerprint,
               dirty=true,generation=0,hardGeneration=0,reason='metadata',changedAt=now,lastScan=now,nextTry=now}
             cache[window.id]=entry
           elseif entry.fingerprint~=window.fingerprint or entry.sourceURL~=window.sourceURL then
-            local identityOnly=entry.sourceURL==window.sourceURL and type(window.structureFingerprint)=='string'
+            local quietNavigation=not recoveryOnActivation and entry.confirmed and not entry.dirty
+              and sourceKind(entry.sourceURL)==kind and type(window.layoutFingerprint)=='string'
+              and entry.layout==window.layoutFingerprint
+            if quietNavigation and entry.sourceURL~=window.sourceURL then counts.quietNavigations=counts.quietNavigations+1 end
+            local identityOnly=quietNavigation or entry.sourceURL==window.sourceURL and type(window.structureFingerprint)=='string'
+              and (window.layoutFingerprint==nil or entry.layout==window.layoutFingerprint)
               and entry.structure==window.structureFingerprint and entry.coalesceUntil and now<=entry.coalesceUntil
               and entry.hardGeneration==entry.scannedHardGeneration
             if identityOnly then counts.identityCoalesced=counts.identityCoalesced+1
@@ -242,7 +310,7 @@ function M.new(config,adapter,driver)
               counts.fingerprintChanges=counts.fingerprintChanges+1
               entry.dirty=true;entry.changedAt=now;entry.generation=entry.generation+1;entry.reason='metadata'
             end
-            entry.sourceURL=window.sourceURL;entry.fingerprint=window.fingerprint;entry.structure=window.structureFingerprint
+            entry.sourceURL=window.sourceURL;entry.fingerprint=window.fingerprint;entry.structure=window.structureFingerprint;entry.layout=window.layoutFingerprint
           end
         else cache[window.id]=nil end
       end
@@ -254,24 +322,32 @@ function M.new(config,adapter,driver)
     local entry=cache[focused.id]
     if entry.observedActivation~=activation then
       entry.observedActivation=activation
-      entry.healthDue=now-entry.lastScan>=health
+      entry.healthDue=recoveryOnActivation and now-entry.lastScan>=health
+    end
+    -- The main shell can be visible before the guest chat exists. Its Developer
+    -- menu may target the guest by the time it opens, so do not start against
+    -- the temporary shell URL. Shell frames are still checked during chat scans.
+    if sourceKind(entry.sourceURL)=='shell' and entry.sourceURL:find('/main_window/',1,true) then
+      phase='waiting-for-web-content';return snapshot()
     end
     if focused.loading==true then phase='waiting-for-load';return snapshot() end
     if now<entry.nextTry then phase='retry-backoff';return snapshot() end
-    -- Continue passive metadata polling. Run the quiet fallback only on returning to a window.
-    -- A reload with no AX evidence cannot be detected until the next return.
+    -- Continue passive metadata polling. Activation recovery is opt-in.
+    -- Quiet mode needs manual reapplication after a reload with no observable metadata change.
     local due=entry.dirty and now-entry.changedAt>=debounce or not entry.dirty and entry.healthDue==true
     if not due then phase=entry.dirty and 'debouncing' or 'waiting-for-change';return snapshot() end
     local ok,reason=driver.begin({windowId=focused.id,toolsTitle='Developer Tools - '..entry.sourceURL,sourceURL=entry.sourceURL,scan=true})
     lastBeginReason=ok~=true and (type(reason)=='string' and beginReasons[reason] and reason or 'driver-begin-failed') or nil
     if ok==true then
       local reason=entry.dirty and entry.reason or 'health'
-      local counter=reason=='metadata' and 'metadataScans' or reason=='event' and 'eventScans' or 'healthScans'
+      lastScanReason=reason
+      local counter=reason=='metadata' and 'metadataScans' or reason=='event' and 'eventScans' or reason=='manual' and 'manualScans' or 'healthScans'
       counts[counter]=counts[counter]+1
-      job={windowId=focused.id,generation=entry.generation,hardGeneration=entry.hardGeneration,kind=sourceKind(entry.sourceURL)};counts.started=counts.started+1;phase='scanning'
+      job={windowId=focused.id,generation=entry.generation,hardGeneration=entry.hardGeneration,kind=sourceKind(entry.sourceURL),startedAt=now};counts.started=counts.started+1;phase='scanning'
     elseif reason=='busy' then
       entry.nextTry=now+retry;counts.skipped=counts.skipped+1;phase='driver-busy'
     else
+      recordFailure({reason=lastBeginReason,phase='begin',elapsedSeconds=0},now,nil,'begin')
       fail(entry,now);phase='retry-backoff'
       local result=driver.snapshot()
       if result.cleanupRequired then attention=true;phase='attention-required' end
@@ -293,11 +369,18 @@ function M.new(config,adapter,driver)
   return {tick=function()
     local ok,value=pcall(tick)
     if not ok then
+      recordFailure({reason='adapter-failed',phase='coordinator'},nil,nil,'coordinator')
       counts.failed=counts.failed+1;cancelDriver();job=nil;attention=true;phase='attention-required'
       return snapshot()
     end
     return value
-  end,markDirty=markDirty,snapshot=snapshot,isRunning=function()return running end,stop=stop}
+  end,markDirty=markDirty,refresh=function()
+    if running then
+      local info=adapter.identity()
+      if eligible(info) and info.frontmost==true then markDirty(info.focusedWindow,'manual') end
+    end
+    return snapshot()
+  end,snapshot=snapshot,isRunning=function()return running end,stop=stop}
 end
 
 function M.nativeAdapter(hs)
@@ -536,13 +619,16 @@ function M.nativeAdapter(hs)
         for _,area in ipairs(areas)do
           if claudeURL(area.url) and (not remoteDepth or area.depth<remoteDepth) then remoteDepth=area.depth end
         end
-        local fingerprint,structure,hasTools={},{},toolsTitle(title) and rootVisible~=false
+        local fingerprint,structure,layout,hasTools={},{},{},toolsTitle(title) and rootVisible~=false
         local embedded={embeddedToolsVisible=0,embeddedToolsHidden=0,embeddedToolsUnknown=0}
         for _,area in ipairs(areas)do
           if area.url:sub(1,11)~='devtools://' then
             local lifecycle=area.loaded==true and ':loaded' or area.loaded==false and ':loading' or ':unknown'
             fingerprint[#fingerprint+1]=tostring(area.id)..':'..#area.url..':'..area.url..lifecycle
             structure[#structure+1]=#area.url..':'..area.url..lifecycle
+            -- Only recognized frame kinds may share an in-document lifetime.
+            -- Preserve unknown URLs so a new or unsupported frame is not hidden.
+            layout[#layout+1]=(sourceKind(area.url) or area.url)..':'..tostring(area.depth)..lifecycle
           end
           if area.url:sub(1,11)=='devtools://' then
             local key=area.visible==false and 'embeddedToolsHidden' or area.visible==true and 'embeddedToolsVisible' or 'embeddedToolsUnknown'
@@ -558,14 +644,14 @@ function M.nativeAdapter(hs)
           end
           for _,name in ipairs({'AXLoadComplete','AXLayoutChanged','AXUIElementDestroyed'})do observeElement(area.element,name)end
         end
-        table.sort(fingerprint);table.sort(structure)
+        table.sort(fingerprint);table.sort(structure);table.sort(layout)
         if ambiguous then diagnostic.ambiguousSources=diagnostic.ambiguousSources+1 end
         for _,name in ipairs({'AXLayoutChanged','AXFocusedUIElementChanged','AXUIElementDestroyed'})do observeElement(root,name)end
         out[#out+1]={id=id,pid=value:pid(),title=title,isTools=hasTools,visible=rootVisible,incomplete=not complete,loading=best and best.loaded==false or false,
           embeddedToolsVisible=embedded.embeddedToolsVisible,embeddedToolsHidden=embedded.embeddedToolsHidden,embeddedToolsUnknown=embedded.embeddedToolsUnknown,
           sourceCandidates=stats.sourceCandidates,ambiguousSources=ambiguous and 1 or 0,
           AXrootsFocusedMismatch=id==globalId and diagnostic.AXrootsFocusedMismatch or 0,
-          sourceURL=complete and not ambiguous and best and best.url or nil,fingerprint=table.concat(fingerprint,'|'),structureFingerprint=table.concat(structure,'|')}
+          sourceURL=complete and not ambiguous and best and best.url or nil,fingerprint=table.concat(fingerprint,'|'),structureFingerprint=table.concat(structure,'|'),layoutFingerprint=table.concat(layout,'|')}
       end
     end
     oldWindows=nextWindows;metadataCache=nextMetadata
@@ -642,7 +728,7 @@ function M.start(config,hs)
     assert(type(template)=='string' and template:find('__RTL_CONSOLE_NONCE__',1,true) and template:find('__RTL_CONSOLE_DOCUMENT_ID__',1,true),'invalid payload template')
     return (template:gsub('__RTL_CONSOLE_NONCE__',function()return nonce end):gsub('__RTL_CONSOLE_DOCUMENT_ID__',function()return documentId end))
   end
-  local driverConfig={probe=probe,payload=payload,timeout=config.timeout}
+  local driverConfig={probe=probe,payload=payload,timeout=config.timeout,scanTimeout=config.scanTimeout}
   local driver=config.driver
   if not driver then
     local driverModule=assert(loadfile(config.driverPath))()
@@ -650,6 +736,23 @@ function M.start(config,hs)
   end
   local adapter=config.adapter or M.nativeAdapter(hs)
   local controller=M.new(config,adapter,driver)
+  local menu
+  local function phaseLabel(status)
+    local labels={['waiting-for-focus']='Waiting for Claude', ['waiting-for-app']='Open Claude',
+      ['waiting-for-idle']='Waiting for typing and mouse movement to stop', ['waiting-for-change']='Watching for changes',
+      ['waiting-for-load']='Waiting for the page to load', ['debouncing']='Waiting for the page to settle',
+      ['waiting-for-web-content']='Waiting for Claude content to load',
+      ['scanning']='Checking and applying', ['cleanup']='Finishing cleanup', ['watcher-stopped']='Stopped',
+      ['user-tools-open']='Waiting for your developer tools to close', ['unsupported-window']='This window is not supported',
+      ['retry-backoff']='Waiting before retrying'}
+    return status.attentionRequired and 'Action required' or labels[status.phase] or 'Waiting'
+  end
+  local function updateMenu(status)
+    if not menu then return end
+    local state=status.attentionRequired and 'Action required' or status.lastApplied and 'Applied' or status.lastCompleted and 'Checked' or 'Not applied yet'
+    menu:setTitle('CDT')
+    menu:setTooltip('Claude Desktop Tweaks: '..state..'. '..phaseLabel(status))
+  end
   local rawSnapshot,rawTick,rawStop=controller.snapshot,controller.tick,controller.stop
   local saved,writeFailures,writeFailed,nextWrite=nil,0,false,0
   local function same(a,b)
@@ -666,6 +769,7 @@ function M.start(config,hs)
   end
   local function publish(force)
     local result=controller.snapshot()
+    updateMenu(result)
     if not config.statusFile or same(result,saved) or not force and adapter.now()<nextWrite then return result end
     -- Write only the allowlisted snapshot, without window metadata.
     local output=controller.snapshot();output.statusWriteFailed=false
@@ -685,9 +789,25 @@ function M.start(config,hs)
   if not ok or not timer then controller.stop();error('coordinator timer unavailable')end
   controller.stop=function()
     stopping=true;rawStop()
+    if menu then menu:delete();menu=nil end
     local status=publish(true)
     if not status.cleanupPending then stopTimer()end
     return status
+  end
+  if hs.menubar and config.menu~=false then
+    menu=hs.menubar.new()
+    if menu then menu:setMenu(function()
+      local status=controller.snapshot()
+      return {
+        {title='Claude Desktop Tweaks',disabled=true},
+        {title=phaseLabel(status),disabled=true},
+        {title=status.lastApplied and 'Last result: changes applied' or status.lastCompleted and 'Last result: checked' or 'Last result: not applied yet',disabled=true},
+        {title='Reapply in Claude in 3 seconds',disabled=status.attentionRequired or not status.running,fn=function()
+          -- Give the user time to return to Claude; never focus another app.
+          hs.timer.doAfter(3,function()controller.refresh()end)
+        end},
+      }
+    end)end
   end
   publish(true)
   return controller
