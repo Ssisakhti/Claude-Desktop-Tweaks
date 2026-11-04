@@ -81,4 +81,14 @@ After ownership and document checks, an apply command clears output in its newly
 
 The installer gives each frame up to 60 seconds, with a hard total scan cap of 300 seconds. The driver still checks input, focus, window identity, and clipboard ownership throughout. Advanced callers may pass a smaller `scanTimeout` in seconds, at least the frame `timeout` and at most 300. A stalled frame cannot use the full scan budget by itself.
 
+## Experimental direct dispatch
+
+The default installation does not load `claude-console-direct.lua`. That module separates asynchronous direct prompt writes, exact readback, local console focus, app-targeted execution, nonce/document receipts, and cleanup. It does not bootstrap a console. A separate experimental native adapter, `claude-console-direct-native.lua`, implements capture, source probing, owned handoff, prompt dispatch, and release. It requires an explicit trusted ownership handoff and cannot take over an existing user console.
+
+See [background bootstrap investigation](background-bootstrap.md) for the tested official menu alternative and its focus-transfer limitation. Experimental transport tests are separate from the supported default runtime.
+
+For the native experiment, create the adapter with `native.new(hs)`, call `capture(sourceWindowId, expectedURL)` before a trusted bootstrap creates tools, and obtain `probeCode(captureToken)`. The bootstrap must execute that exact source-guarded probe in the new console. `bind(captureToken, toolsWindowId)` then reads and verifies the real console receipt itself; callers cannot supply a proof table. Pass the returned opaque ownership value to the direct module. No startup hook is installed. Missing monitoring capabilities or rejected AX watcher registration refuse the handoff. An accepted asynchronous window close is conservatively reported as incomplete and monitoring is stopped; do not mistake that for verified cleanup.
+
 The stable watcher waits for the main guest content at startup instead of targeting a temporary local `main_window` shell. A nonmodal native dialog can be excluded from console candidates only after a complete bounded inspection proves it contains no web area and exactly one other candidate has the expected console title and official PID. The classification is rechecked until source ownership is proven. Modal, unknown, truncated, and additional console candidates still stop the transaction. An excluded dialog is never targeted or closed.
+
+Abort an unclaimed native experiment with `discard(token)` so its capture/ownership state is released. The native adapter's lifecycle watcher registration and event capabilities must all succeed before a handoff is usable. Stop the default watcher and verify its cleanup before any live experiment.

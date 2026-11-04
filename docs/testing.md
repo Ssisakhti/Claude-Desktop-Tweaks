@@ -16,6 +16,8 @@ Run the Lua suites with Lua 5.4:
 ```sh
 python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console.lua --test test/hammerspoon-console.test.lua
 python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console-auto.lua --test test/hammerspoon-console-auto.test.lua
+python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console-direct.lua --test test/hammerspoon-console-direct.test.lua
+python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console-direct-native.lua --test test/hammerspoon-console-direct-native.test.lua
 ```
 
 These suites do not operate the live interface. They use synthetic fixtures to check frame discovery, context guards, exact source verification, clipboard protection, failure handling, and cleanup. Passing them does not establish every behavior of the real app. The font check verifies the embedded official variable WOFF2 and its pinned SHA-256. Weights 100–900 use one font face.
@@ -83,7 +85,11 @@ After switching the runtime to the official variable font, a live chat applicati
 
 ### Stabilization and diagnostics checks
 
-The guarded driver now records total and per-phase durations and gives each new frame its own deadline under a fixed overall scan cap. Synthetic regressions cover progressive multi-frame scans, stalled frames, total caps, immutable timing snapshots, and failure evidence retained after successful retries.
+The guarded driver now records total and per-phase durations and gives each new frame its own deadline under a fixed overall scan cap. Synthetic regressions cover progressive multi-frame scans, stalled frames, total caps, immutable timing snapshots, and failure evidence retained after successful retries. The independent direct-dispatch suite also executes generated JavaScript in Node to verify data isolation, namespace ownership, document replacement, and cleanup. It does not operate the live app.
+
+The experimental native adapter has separate fake-native tests for capture-before ownership, source probe receipts, stale targets, scoped interaction tracking, watcher-registration rejection, local focus, exact prompt verification, and conservative release. Its generated bootstrap probe is executed in Node tests.
+
+A later live check used both experimental modules together: fresh capture, explicit foreground console opening, a verified source probe, native binding, and direct dispatch with Finder foreground. The source already had the stable integration's document identity record. Three commands transferred base64 data `NDI=` and validated the decoded value `42`, then the transaction removed its namespace and closed its owned console. The result was `complete` with `ok: true`, `released: true`, `cleanupRequired: false`, no owned tools remaining, and no monitored console interruption. Finder remained foreground during dispatch and release. This was a small transport check, not the full font/style payload or a complete startup integration. Bootstrap without focus transfer remains unqualified; the default runtime was not changed.
 
 ### Startup readiness regression
 

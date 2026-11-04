@@ -9,6 +9,7 @@
 - Distinguish a completely inspected native nonmodal dialog from the single exact console candidate.
 - Bound each frame separately while keeping a hard overall scan limit.
 - Diagnose bounded prompt traversal and clear large source echoes only in the newly owned console after document verification.
+- Add an isolated direct-dispatch experiment and synthetic JavaScript/ownership tests; keep it outside the default installer.
 - Reuse confirmed controllers across same-layout chat navigation and accessibility identity changes.
 - Disable activation health scans by default; retain explicit compatibility recovery.
 - Add a CDT status menu and delayed manual reapplication without forcing app focus.

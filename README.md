@@ -37,6 +37,8 @@ Only macOS and the official Claude Desktop app are supported. Hammerspoon contro
 
 The latest local cold-start check completed on the first attempt after waiting for guest content. A separate four-frame document check also completed without a retry. These local checks do not guarantee zero-retry behavior for every launch or app version. Chat navigation reuses the in-page controller when the frame layout is unchanged. Reloads without an observed loading or frame-layout change may need **Reapply in Claude in 3 seconds** from the **CDT** menu. Native Quick Entry without an HTML frame is outside the tool's scope. A second simultaneous native window for ordinary chat has not been verified. See [testing and limitations](docs/testing.md).
 
+The default runtime remains the guarded console route. An independent direct-dispatch experiment is documented in [background bootstrap investigation](docs/background-bootstrap.md); it is not enabled by installation.
+
 ## Remove the integration
 
 ```sh
