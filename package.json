@@ -1,0 +1,59 @@
+{
+  "name": "claude-desktop-tweaks",
+  "version": "1.0.0",
+  "description": "Estedad fonts, mixed-direction text, and the Nord theme for Claude Desktop on macOS",
+  "type": "commonjs",
+  "main": "bin/claude-desktop-tweaks.cjs",
+  "bin": {
+    "claude-desktop-tweaks": "bin/claude-desktop-tweaks.cjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.cjs",
+    "build:fonts": "node scripts/build-fonts.cjs",
+    "check:fonts": "node scripts/build-fonts.cjs --check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ssisakhti/Claude-Desktop-Tweaks.git"
+  },
+  "homepage": "https://github.com/Ssisakhti/Claude-Desktop-Tweaks#readme",
+  "bugs": {
+    "url": "https://github.com/Ssisakhti/Claude-Desktop-Tweaks/issues"
+  },
+  "author": "Saeid Sisakhti",
+  "license": "MIT",
+  "keywords": [
+    "claude",
+    "desktop",
+    "tweaks",
+    "persian",
+    "rtl",
+    "estedad",
+    "nord",
+    "hammerspoon"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "terser": "5.51.2"
+  },
+  "devDependencies": {
+    "linkedom": "0.18.15"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "integrations",
+    "scripts/setup.cjs",
+    "scripts/build-fonts.cjs",
+    "assets/estedad",
+    "assets/nord/LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+    "docs",
+    "LICENSE",
+    "NOTICE.md",
+    "CLAUDE.md"
+  ]
+}
