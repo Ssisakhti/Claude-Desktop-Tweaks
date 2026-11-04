@@ -4,6 +4,16 @@ const assert = require('node:assert/strict');
 const { parseHTML } = require('linkedom');
 const { findSurfaces, isExcluded, contentText, selectorFor, collectTargets } = require('../lib/persian/scope.cjs');
 
+test('Cover empty textbox composers and nested textarea composers without targeting navigation controls',()=>{
+ const doc=parseHTML('<html><body><nav><div role="textbox" class="ProseMirror" contenteditable="true" id="search"></div></nav><main><div role="textbox" class="ProseMirror" contenteditable="true" id="composer"><p id="empty"></p></div><div data-testid="chat-input"><textarea id="nested">متن فارسی</textarea><div role="button"><input id="button-input"></div></div><input id="unrelated"></main></body></html>').document;
+ const before=doc.documentElement.outerHTML;
+ const targets=collect(doc,'chat');
+ assert.ok(ids(targets.fonts).includes('composer'));
+ for(const id of ['empty','nested'])assert.ok(ids(targets.blocks).includes(id),id);
+ for(const id of ['search','button-input','unrelated'])assert.ok(!ids(targets.blocks).includes(id),id);
+ assert.equal(doc.documentElement.outerHTML,before);
+});
+
 function fixture() {
   return parseHTML(`<!doctype html><html><head><title>نمونه</title></head><body>
     <header dir="ltr"><h1 id="ui-title">عنوان فارسی چت</h1></header><nav dir="ltr"><div data-testid="user-message"><p id="project">پروژهٔ فارسی</p></div><button id="chat-name">نام چت</button><p id="sidebar-english">English project</p><p id="sidebar-mixed">API پروژه</p></nav>

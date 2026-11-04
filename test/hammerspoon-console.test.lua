@@ -24,6 +24,7 @@ local function fixture(options)
       if not options.noTools then
         state.windows[#state.windows+1]={id=20,title=options.toolsTitle or 'Developer Tools - synthetic',pid=options.toolsPID or 123};state.focused=20
         if options.ambiguousTools then state.windows[#state.windows+1]={id=21,title='Developer Tools - synthetic 2',pid=123} end
+        if options.nativeDialog then state.windows[#state.windows+1]={id=21,title='Window',pid=123,nonWebDialog=true} end
       end
       return not options.menuFails
     end,
@@ -58,9 +59,9 @@ local function fixture(options)
       return false
     end}
   local original=state.clipboard
-  local config={timeout=options.timeout or 2,payload=function(kind,nonce,documentId)
+  local config={timeout=options.timeout or 2,scanTimeout=options.scanTimeout,payload=function(kind,nonce,documentId)
     state.payloadDocumentId=documentId
-    return '(async()=>{globalThis.executed=true;return {marker:"RTL_CONSOLE_RESULT",nonce:"'..nonce..'",kind:"'..kind..'",ok:true,documentId:"'..documentId..'"};})()'
+    return '(async()=>{globalThis.executed=true;const result={marker:"RTL_CONSOLE_RESULT",nonce:"'..nonce..'",kind:"'..kind..'",ok:true,documentId:"'..documentId..'"};console.log(JSON.stringify(result));return result;})()'
   end}
   local driver=M.new(config,adapter)
   local request={windowId=10,kind='artifact-content',context='fixture.frame.claudeusercontent.com',contextLabel='JavaScript context: fixture',
@@ -76,9 +77,21 @@ local function fixture(options)
 end
 local f=fixture();check(f.driver.begin(f.request),'start');f.run('complete');local result=f.driver.snapshot()
 check(result.ok and result.toolsClosed and result.clipboardRestored,'complete only after cleanup')
+check(type(result.elapsedSeconds)=='number' and result.elapsedSeconds>0 and type(result.phaseDurations)=='table','transaction exposes elapsed time and safe phase durations')
+local finishedElapsed=result.elapsedSeconds
+result.phaseDurations.open=999
+check(f.driver.snapshot().phaseDurations.open~=999,'timing maps cannot mutate stored evidence')
+f.state.now=f.state.now+100
+check(f.driver.snapshot().elapsedSeconds==finishedElapsed,'completed timing freezes after cleanup')
 check(f.state.clipboard==f.original and f.state.clipboard['public.rtf']=='{sample}','all clipboard formats preserved')
 check(table.concat(f.state.events,',')=='tracking,open,contexts,select,focus,write,paste,return,restore,close,untracking','ordered transaction')
 check(#f.state.windows==1 and f.state.windows[1].id==10,'main window remains')
+local dialog=fixture({nativeDialog=true});dialog.driver.begin(dialog.request);dialog.run('complete')
+check(dialog.driver.snapshot().ok and #dialog.state.windows==2,'a proven native nonmodal non-web dialog is not mistaken for a second console')
+check(dialog.state.windows[2].id==21 and #dialog.state.closed==1,'unrelated native dialog is neither targeted nor closed')
+dialog=fixture({nativeDialog=true});dialog.driver.begin(dialog.request);dialog.driver.tick();dialog.driver.tick()
+dialog.state.windows[3].nonWebDialog=false;dialog.driver.tick()
+check(dialog.driver.snapshot().reason=='ambiguous-tools' and #dialog.state.closed==0,'ignored dialog metadata is rechecked before source ownership is proven')
 for key in pairs(result)do check(key~='title' and key~='url' and key~='payload' and key~='clipboard','no private snapshot')end
 for _,options in ipairs({{wrongBundle=true},{wrongPath=true},{existing=true},{multi=true}})do
   f=fixture(options);check(not f.driver.begin(f.request),'preflight refused');check(#f.state.events==0,'preflight no modification')
@@ -300,7 +313,7 @@ check(not f.state.payloadSource:find('__RTL_CONSOLE_DOCUMENT_ID__',1,true),'docu
 -- Pin the top source before scanning. Give each subsequent command a fresh nonce.
 local function scanFixture(options)
   options=options or {}
-  local f=fixture({timeout=40});local state=f.state
+  local f=fixture({timeout=options.timeout or 40,scanTimeout=options.scanTimeout});local state=f.state
   f.request={windowId=10,toolsTitle='Developer Tools - synthetic',sourceURL='https://claude.ai/new',scan=true}
   local fullDocumentTitle='{"title":"Synthetic document","scope":"ordinary frame"}'
   local truncatedPrefix=fullDocumentTitle:sub(1,25)
@@ -361,6 +374,22 @@ local function scanFixture(options)
   end
   return f
 end
+local function slowScan(options)
+ local slow=scanFixture(options);slow.driver.begin(slow.request)
+ for _=1,1000 do
+  slow.driver.tick();local status=slow.driver.snapshot()
+  if status.reason or status.phase=='complete' then return slow,status end
+  slow.state.now=slow.state.now+1
+ end
+ return slow,slow.driver.snapshot()
+end
+local slow,slowResult=slowScan()
+check(slowResult.ok and slowResult.elapsedSeconds>40,'multiple frames can complete beyond one frame timeout without reopening tools')
+check(#slow.state.closed==1 and slow.state.clipboard==slow.original,'extended scan still closes once and restores clipboard')
+local capped,cappedResult=slowScan({scanTimeout=45})
+check(not cappedResult.ok and cappedResult.reason=='timeout' and cappedResult.elapsedSeconds<=46,'overall scan cap bounds progressive frame deadlines')
+local stalled=scanFixture();stalled.driver.begin(stalled.request);stalled.scanUntil('await-result');stalled.state.now=stalled.state.now+41
+stalled.driver.tick();check(stalled.driver.snapshot().reason=='timeout','stalled first frame keeps its individual timeout')
 f=scanFixture();check(f.driver.begin(f.request),'scan begins without caller document ID');f.scanUntil('execute');local sourceGuard=f.state.payloadSource
 local scanResult=f.scanUntil('complete')
 check(scanResult.ok and scanResult.applied==3 and scanResult.skipped==3 and scanResult.contexts==6,'all ordinary contexts scanned and summarized')
@@ -458,11 +487,26 @@ const assert=require('node:assert/strict'),vm=require('node:vm');
 const source=process.argv[1];
 (async()=>{
  for(const [id,sameDocument] of [['b'.repeat(32),true],['a'.repeat(32),false],['a'.repeat(32),true]]){
-  const document={},sandbox={document,window:{},console:{log(){}}};
+  const document={},output=['large source echo'],events=[],sandbox={document,window:{},console:{
+   clear(){events.push('clear');assert.equal(sandbox.executed,undefined);output.length=0;},
+   log(value){events.push('log');output.push(JSON.parse(value));}
+  }};
   sandbox.window.__claudePersianConsoleDocumentV1={id,document:sameDocument?document:{}};
   const result=await vm.runInNewContext(source,sandbox);
-  if(id==='a'.repeat(32)&&sameDocument){assert.equal(result.ok,true);assert.equal(sandbox.executed,true);}
-  else {assert.equal(result.reason,'document-mismatch');assert.equal(sandbox.executed,undefined);}
+  if(id==='a'.repeat(32)&&sameDocument){
+   assert.equal(result.ok,true);assert.equal(sandbox.executed,true);assert.deepEqual(events,['clear','log']);
+   assert.equal(output.length,1);assert.equal(output[0].marker,'RTL_CONSOLE_RESULT');assert.equal(output[0].nonce,result.nonce);assert.equal(output[0].ok,true);
+  } else {
+   assert.equal(result.reason,'document-mismatch');assert.equal(sandbox.executed,undefined);assert.deepEqual(events,['log']);
+   assert.equal(output[0],'large source echo');
+  }
+ }
+ for(const clear of [undefined,()=>{throw new Error('private exception text');}]){
+  const document={},output=[],sandbox={document,window:{},console:{clear,log(value){output.push(JSON.parse(value));}}};
+  sandbox.window.__claudePersianConsoleDocumentV1={id:'a'.repeat(32),document};
+  const result=await vm.runInNewContext(source,sandbox);
+  assert.equal(result.ok,false);assert.equal(result.reason,'console-clear-failed');assert.equal(sandbox.executed,undefined);
+  assert.equal(output.length,1);assert.equal(output[0].reason,'console-clear-failed');assert.equal(JSON.stringify(output).includes('private exception text'),false);
  }
  const {buildConsolePayload}=require(process.argv[2]);
  const wrong=buildConsolePayload({kind:'chat',nonce:'n'.repeat(32),documentId:'a'.repeat(32),fonts:[]});
@@ -554,6 +598,31 @@ root.attrs.AXChildren={promptNode}
 check(native.openContexts(target)=='pending','native missing context button returns pending')
 root.attrs.AXChildren={button}
 check(native.promptValue(target)==nil and native.focusPrompt(target)=='pending','native missing prompt returns pending')
+scenarios=scenarios+1
+local missingPrompt=native.promptDiagnostics(target)
+check(not missingPrompt.present and missingPrompt.rootPresent and missingPrompt.treeVisited==2
+  and not missingPrompt.treeTruncated and missingPrompt.promptMatches==0,'missing prompt has complete safe search diagnostics')
+local absentRoot=native.promptDiagnostics({id=999,title=target.title,pid=target.pid})
+check(not absentRoot.rootPresent and absentRoot.treeVisited==0 and not absentRoot.treeTruncated
+  and absentRoot.promptMatches==0,'missing owned root is distinct from a complete prompt search')
+scenarios=scenarios+1
+local duplicatePrompt=node({AXRole='AXTextArea',AXDescription='Console prompt',AXValue='private fixture text'})
+root.attrs.AXChildren={promptNode,duplicatePrompt}
+local duplicateSearch=native.promptDiagnostics(target)
+check(not duplicateSearch.present and duplicateSearch.promptMatches==2 and duplicateSearch.treeVisited==3
+  and not duplicateSearch.treeTruncated,'duplicate prompt diagnostics distinguish ambiguity from absence')
+check(duplicateSearch.valueType=='nil' and duplicateSearch.length==0,'ambiguous prompt diagnostics do not expose either value')
+scenarios=scenarios+1
+local crowded={};for index=1,3999 do crowded[index]=node({AXRole='AXStaticText',AXValue='private fixture output'})end
+root.attrs.AXChildren=crowded
+local exactBoundary=native.promptDiagnostics(target)
+check(exactBoundary.treeVisited==4000 and not exactBoundary.treeTruncated and exactBoundary.promptMatches==0,
+  'exact traversal boundary is complete when no nodes remain')
+crowded[#crowded+1]=promptNode
+local cappedSearch=native.promptDiagnostics(target)
+check(not cappedSearch.present and cappedSearch.treeVisited==4000 and cappedSearch.treeTruncated and cappedSearch.promptMatches==0,
+  'output saturation reports the existing cap before the later prompt')
+for _,value in pairs(cappedSearch)do check(value~='private fixture output','search diagnostics exclude console output')end
 root.attrs.AXChildren=originalChildren
 root.attrs.AXChildren={button,promptNode}
 local originalSetFocus=button.setAttributeValue
@@ -695,4 +764,27 @@ local duplicateName,duplicateNameReason=native.contexts(target)
 check(not duplicateName and duplicateNameReason=='duplicate-context','same ordinary title with different origin also refused')
 appRoot.attrs.AXFocusedWindow=nil;appRoot.attrs.AXWindows={}
 check(native.toolsClosed(target,123),'native close verified after AX disappearance too')
+scenarios=scenarios+1
+local dialogAX=node({AXRole='AXWindow',AXModal=false,AXChildren={node({AXRole='AXStaticText'})}})
+local dialogWindow={id=function()return 31 end,title=function()return 'Window'end,application=function()return nativeApp end,subrole=function()return 'AXDialog'end}
+function dialogAX:asHSWindow()return dialogWindow end
+local function names(e)
+ function e:attributeNames()local values={};for name in pairs(self.attrs)do values[#values+1]=name end;return values end
+ for _,child in ipairs(e.attrs.AXChildren or {})do names(child)end
+end
+names(dialogAX)
+nativeApp.allWindows=function()return {dialogWindow}end
+appRoot.attrs.AXWindows={dialogAX}
+native=M.nativeAdapter(nativeHS)
+check(native.windows()[1].nonWebDialog==true,'native nonmodal dialog requires a complete known non-web tree')
+dialogAX.attrs.AXModal=true
+check(native.windows()[1].nonWebDialog==false,'modal dialogs cannot be ignored during console discovery')
+dialogAX.attrs.AXModal=false;dialogAX.attrs.AXChildren[1].attrs.AXRole='AXWebArea'
+check(native.windows()[1].nonWebDialog==false,'web content cannot be classified as a native-only dialog')
+dialogAX.attrs.AXChildren[1].attrs.AXRole='AXStaticText'
+dialogAX.attributeNames=function()error('stale')end
+check(native.windows()[1].nonWebDialog==false,'failed metadata reads remain uncertain')
+names(dialogAX);dialogAX.attrs.AXChildren={}
+for index=1,260 do dialogAX.attrs.AXChildren[index]=node({AXRole='AXStaticText'});names(dialogAX.attrs.AXChildren[index])end
+check(native.windows()[1].nonWebDialog==false,'truncated native dialog traversal remains uncertain')
 return {ok=true,assertions=assertions,scenarios=scenarios}

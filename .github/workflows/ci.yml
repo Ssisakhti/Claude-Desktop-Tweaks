@@ -38,3 +38,5 @@ jobs:
       - run: node --test test/setup.test.cjs
       - run: python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console.lua --test test/hammerspoon-console.test.lua
       - run: python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console-auto.lua --test test/hammerspoon-console-auto.test.lua
+      - run: python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console-direct.lua --test test/hammerspoon-console-direct.test.lua
+      - run: python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console-direct-native.lua --test test/hammerspoon-console-direct-native.test.lua

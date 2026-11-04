@@ -59,10 +59,35 @@ function M.new(config, adapter)
     appliedKinds=kindCounts(),probedKinds=kindCounts()}
   local timeout = config.timeout or 20
   assert(type(timeout)=='number' and timeout>0 and timeout<=60, 'invalid timeout')
+  local scanTimeout=config.scanTimeout or math.min(timeout*5,300)
+  assert(type(scanTimeout)=='number' and scanTimeout>=timeout and scanTimeout<=300,'invalid scanTimeout')
+  local function seconds(value)
+    return type(value)=='number' and value==value and math.max(0,math.min(3600,value)) or 0
+  end
+  local function clock(s)
+    local ok,now=pcall(adapter.now)
+    return ok and type(now)=='number' and now==now and now<math.huge and now>-math.huge and now or s.measuredAt
+  end
+  local function accountTime(s)
+    local now=clock(s)
+    local phase=s.measuredPhase or s.phase
+    s.phaseDurations[phase]=seconds((s.phaseDurations[phase] or 0)+seconds(now-s.measuredAt))
+    s.measuredAt=now;s.measuredPhase=s.phase
+  end
+  local function timing(s)
+    local now=clock(s)
+    local phases={};for phase,value in pairs(s.phaseDurations)do phases[phase]=seconds(value)end
+    local phase=s.measuredPhase or s.phase
+    phases[phase]=seconds((phases[phase] or 0)+seconds(now-s.measuredAt))
+    return seconds(now-s.startedAt),phases
+  end
   local function snapshot()
     local out={};for key,value in pairs(last) do
-      out[key]=(key=='appliedKinds' or key=='probedKinds') and kindCounts(value) or value
-    end;return out
+      if key=='phaseDurations' then local copy={};for phase,duration in pairs(value)do copy[phase]=duration end;out[key]=copy
+      else out[key]=(key=='appliedKinds' or key=='probedKinds') and kindCounts(value) or value end
+    end
+    if transaction then out.elapsedSeconds,out.phaseDurations=timing(transaction)end
+    return out
   end
   local function titleDiagnostic(s,candidate)
     local actual=type(candidate.title)=='string' and candidate.title or ''
@@ -133,6 +158,9 @@ function M.new(config, adapter)
     if type(source)~='string' or source=='' or not source:find(nonce,1,true) or not source:find(id,1,true) then return nil end
     return '(async()=>{const record=window.__claudePersianConsoleDocumentV1;if(!record||record.document!==document||record.id!=="'..id..'")'
       ..'{const result={marker:"RTL_CONSOLE_RESULT",nonce:"'..nonce..'",kind:"'..kind..'",ok:false,reason:"document-mismatch"};console.log(JSON.stringify(result));return result;}'
+      -- This command reaches only the newly owned console after input/context
+      -- checks. Drop its large source echo before the payload emits its receipt.
+      ..'try{if(typeof console.clear!=="function")throw new Error();console.clear();}catch{const result={marker:"RTL_CONSOLE_RESULT",nonce:"'..nonce..'",kind:"'..kind..'",ok:false,reason:"console-clear-failed"};console.log(JSON.stringify(result));return result;}'
       ..'return await ('..source..');})()'
   end
   local function probeSource(nonce,expectedURL)
@@ -159,6 +187,7 @@ function M.new(config, adapter)
     return true
   end
   local function publish(s,reason,applied,restored,closed)
+    accountTime(s)
     if adapter.endTracking then pcall(adapter.endTracking) end
     last={experimental=true,phase=reason or 'complete',kind=s.request.kind,pid=s.pid,
       ok=applied==true and restored and closed,clipboardRestored=restored,toolsClosed=closed,
@@ -167,6 +196,7 @@ function M.new(config, adapter)
     last.appliedKinds=kindCounts(s.appliedKinds);last.probedKinds=kindCounts(s.probedKinds)
     last.sourceWindowId=s.request.windowId;last.sourcePID=s.pid
     last.copyVerifications=s.copyVerifications or 0
+    last.elapsedSeconds,last.phaseDurations=timing(s)
     for key,value in pairs(s.titleDiagnostic or {})do last[key]=value end
     for key,value in pairs(s.pasteDiagnostic or {})do last[key]=value end
     for key,value in pairs(s.menuDiagnostic or {})do last[key]=value end
@@ -224,6 +254,11 @@ function M.new(config, adapter)
       end
       if not found then return 'tools-changed' end
     end
+    if not s.proven and s.ignoredDialogs then
+      for _,window in ipairs(adapter.windows())do
+        if s.ignoredDialogs[window.id] and window.nonWebDialog~=true then return 'ambiguous-tools' end
+      end
+    end
     if adapter.now()>s.deadline then return 'timeout' end
     return nil,pendingFocus
   end
@@ -256,12 +291,14 @@ function M.new(config, adapter)
     local clipboard,reason=adapter.captureClipboard()
     if not clipboard then return false,reason or 'clipboard-unavailable' end
     local scan=request.scan==true
+    local now=adapter.now()
     local s={request={windowId=request.windowId,kind=request.kind,context=scan and 'top' or request.context,
       contextLabel=scan and 'JavaScript context: top' or request.contextLabel,
       documentId=request.documentId,toolsTitle=request.toolsTitle,sourceURL=request.sourceURL,scan=scan},
       pid=info.pid,seen=seen,clipboard=clipboard,usedNonces={},seenDocuments={},sourcePending=scan,
       applied=0,skipped=0,copyVerifications=0,contextCount=scan and 0 or 1,appliedKinds=kindCounts(),probedKinds=kindCounts(),
-      phase='open',deadline=adapter.now()+timeout,activity=adapter.activity()}
+      phase='open',deadline=now+timeout,scanDeadline=now+scanTimeout,startedAt=now,measuredAt=now,
+      measuredPhase='open',phaseDurations={},activity=adapter.activity()}
     local firstKind;if not scan then firstKind=request.kind end
     local prepared,problem=command(s,firstKind,request.documentId,scan and request.sourceURL or nil)
     if not prepared then return false,problem end
@@ -278,6 +315,9 @@ function M.new(config, adapter)
     s.contextIndex=s.contextIndex+1
     local option=s.contextQueue[s.contextIndex]
     if not option then return finish(nil,true) end
+    -- Each new frame gets a bounded opportunity. A slow first frame must not
+    -- consume the entire scan budget, and the whole scan still has a hard cap.
+    s.deadline=math.min(adapter.now()+timeout,s.scanDeadline)
     s.request.context=option.title;s.request.contextLabel=option.contextLabel or ('JavaScript context: '..option.title)
     s.request.contextOrdinal=option.index;s.request.contextKey=option.key
     local ok,problem=command(s,nil,nil,nil)
@@ -302,6 +342,24 @@ function M.new(config, adapter)
         -- A new window may have no title while its frontend initializes.
         -- It remains a candidate. Require an exact title and valid probe before code or close.
         if not s.seen[window.id] then candidates[#candidates+1]=window end
+      end
+      local exact={}
+      for _,candidate in ipairs(candidates)do
+        if candidate.title==s.request.toolsTitle and candidate.pid==s.pid then exact[#exact+1]=candidate end
+      end
+      if #exact==1 and #candidates>1 then
+        local uncertain=false;local ignored={}
+        for _,candidate in ipairs(candidates)do
+          if candidate.id~=exact[1].id then
+            if candidate.pid==s.pid and candidate.nonWebDialog==true and type(candidate.title)=='string'
+              and not candidate.title:match('^Developer Tools') then ignored[candidate.id]=true
+            else uncertain=true end
+          end
+        end
+        if not uncertain then
+          s.ignoredDialogs=ignored;candidates=exact
+          if s.pendingTools and ignored[s.pendingTools.id]then s.pendingTools=nil end
+        end
       end
       if #candidates>1 then return finish('ambiguous-tools') end
       if #candidates==1 then
@@ -524,6 +582,7 @@ function M.new(config, adapter)
       return value,reason
     end,snapshot=snapshot,cancel=function()return finish('cancelled')end,
     tick=function()
+      if transaction then accountTime(transaction)end
       local ok,value=pcall(step)
       if not ok then
         if transaction and transaction.phase=='cleanup' then
@@ -532,7 +591,8 @@ function M.new(config, adapter)
         end
         return finish('adapter-failed')
       end
-      return value
+      if transaction then transaction.measuredPhase=transaction.phase end
+      return snapshot()
     end}
 end
 
@@ -587,7 +647,7 @@ function M.nativeAdapter(hs)
       local children=attribute(element,'AXChildren') or {}
       for i=#children,1,-1 do stack[#stack+1]=children[i] end
     end
-    return found
+    return found,{visited=count,truncated=#stack>0,matchCount=#found}
   end
   local function window(target)
     local value=app();if not value then return nil end
@@ -609,9 +669,11 @@ function M.nativeAdapter(hs)
     end
   end
   local function prompt(target)
-    local root=axWindow(target);if not root then return nil end
-    local found=walk(root,function(e)return attribute(e,'AXRole')=='AXTextArea' and attribute(e,'AXDescription')=='Console prompt'end)
-    return #found==1 and found[1] or nil
+    local root=axWindow(target)
+    if not root then return nil,{rootPresent=false,visited=0,truncated=false,matchCount=0} end
+    local found,stats=walk(root,function(e)return attribute(e,'AXRole')=='AXTextArea' and attribute(e,'AXDescription')=='Console prompt'end)
+    stats.rootPresent=true
+    return #found==1 and found[1] or nil,stats
   end
   local function contextButton(target)
     local root=axWindow(target);if not root then return nil end
@@ -619,6 +681,30 @@ function M.nativeAdapter(hs)
     return #found==1 and found[1] or nil
   end
   local adapter={}
+  local function nonWebDialog(item,root)
+    local ok,subrole=pcall(function()return item:subrole()end)
+    if not ok or subrole~='AXDialog' or not root or item:title():match('^Developer Tools') then return false end
+    local worked,modal,problem=pcall(function()return root:attributeValue('AXModal')end)
+    if not worked or problem~=nil or modal~=false then return false end
+    local stack,seen,count={root},{},0
+    while #stack>0 and count<256 do
+      local e=table.remove(stack)
+      if not seen[e] then
+        seen[e]=true;count=count+1
+        local valid,role,err=pcall(function()return e:attributeValue('AXRole')end)
+        if not valid or err~=nil or type(role)~='string' or role=='AXWebArea' then return false end
+        local named,names=pcall(function()return e:attributeNames()end)
+        if not named or type(names)~='table' then return false end
+        local children=false;for _,name in ipairs(names)do if name=='AXChildren'then children=true end end
+        if children then
+          local read,values,errorCode=pcall(function()return e:attributeValue('AXChildren')end)
+          if not read or errorCode~=nil or type(values)~='table' then return false end
+          for _,child in ipairs(values)do stack[#stack+1]=child end
+        end
+      end
+    end
+    return #stack==0
+  end
   function adapter.now()return hs.timer.secondsSinceEpoch()end
   function adapter.nonce()return (hs.host.uuid():gsub('-',''))end
   function adapter.activity()return activity end
@@ -630,7 +716,9 @@ function M.nativeAdapter(hs)
   end
   function adapter.windows()
     local out={};local value=app();if not value then return out end
-    for _,item in ipairs(nativeWindows()) do out[#out+1]={id=item:id(),title=item:title(),pid=item:application():pid()} end
+    local candidates,elements=nativeWindows()
+    for _,item in ipairs(candidates) do out[#out+1]={id=item:id(),title=item:title(),pid=item:application():pid(),
+      nonWebDialog=nonWebDialog(item,elements[item:id()])} end
     return out
   end
   function adapter.captureClipboard()
@@ -813,9 +901,10 @@ function M.nativeAdapter(hs)
     return value
   end
   function adapter.promptDiagnostics(target)
-    local element=prompt(target);local value=element and attribute(element,'AXValue')
+    local element,tree=prompt(target);local value=element and attribute(element,'AXValue')
     local children=element and attribute(element,'AXChildren')
-    local result={present=element~=nil,valueType=type(value),length=0,whitespaceOnly=false,exactLF=value=='\n',
+    local result={present=element~=nil,rootPresent=tree.rootPresent,treeVisited=tree.visited,treeTruncated=tree.truncated,promptMatches=tree.matchCount,
+      valueType=type(value),length=0,whitespaceOnly=false,exactLF=value=='\n',
       childrenKnown=type(children)=='table',childCount=type(children)=='table' and #children or 0,textChildren=0,nonemptyTextChildren=0}
     local childRole=type(children)=='table' and children[1] and attribute(children[1],'AXRole')
     local roles={AXGroup=true,AXStaticText=true,AXTextArea=true}

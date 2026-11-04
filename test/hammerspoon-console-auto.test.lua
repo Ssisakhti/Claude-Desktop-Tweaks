@@ -5,7 +5,7 @@ local function check(value,message)assertions=assertions+1;assert(value,message)
 local function fixture(options)
   scenarios=scenarios+1;options=options or {}
   local state={now=0,idle=3,frontmost=true,pid=123,focused=10,requests={},result={phase='idle',ok=false},
-    windows={{id=10,pid=123,sourceURL='https://claude.ai/new',fingerprint='first',structureFingerprint='one-chat'}},observerStops=0,driverStops=0,cancels=0}
+    windows={{id=10,pid=123,sourceURL='https://claude.ai/new',fingerprint='first',structureFingerprint='one-chat',layoutFingerprint='chat:1:loaded'}},observerStops=0,driverStops=0,cancels=0}
   local notify
   local adapter={now=function()return state.now end,idleSeconds=function()return state.idle end,
     identity=function()
@@ -19,7 +19,8 @@ local function fixture(options)
     state.requests[#state.requests+1]=request;state.result={phase='open',ok=false};return true
   end,cancel=function()state.cancels=state.cancels+1;state.result={phase='cancelled',reason='cancelled',ok=false}end,
     stop=function()state.driverStops=state.driverStops+1;state.result={phase=state.asyncCleanup and 'cleanup' or 'cancelled',ok=false}end}
-  local config={};for key,value in pairs(options.config or {})do config[key]=value end
+  -- Existing recovery scenarios exercise the explicit compatibility option.
+  local config={recoveryOnActivation=true};for key,value in pairs(options.config or {})do config[key]=value end
   local controller=M.new(config,adapter,driver)
   controller.tick()
   return {state=state,adapter=adapter,driver=driver,controller=controller,
@@ -27,6 +28,35 @@ local function fixture(options)
     dirty=function(id,event)if notify then notify(id,event)end end,
     complete=function(result)state.result=result or {phase='complete',ok=true};return controller.tick()end}
 end
+
+local quiet=fixture({config={recoveryOnActivation=false}})
+quiet.state.windows[1].layoutFingerprint='chat:1:loaded'
+quiet.advance(1.1);quiet.complete({phase='complete',ok=true,applied=1})
+for index=1,20 do
+  quiet.state.windows[1].sourceURL='https://claude.ai/chat/fixture-'..index
+  quiet.state.windows[1].fingerprint='AX-'..index
+  quiet.state.windows[1].structureFingerprint='route-'..index
+  quiet.dirty(10,'AXLoadComplete');quiet.advance(2)
+end
+check(#quiet.state.requests==1,'twenty chat route and AX identity changes do not reopen tools in quiet mode')
+quiet.state.frontmost=false;quiet.advance(60);quiet.state.frontmost=true;quiet.advance(2)
+check(#quiet.state.requests==1,'quiet mode has no activation health popup')
+quiet.controller.refresh();quiet.advance(1.1)
+check(#quiet.state.requests==2 and quiet.state.requests[2].sourceURL=='https://claude.ai/chat/fixture-20','manual recovery uses the current exact URL')
+check(quiet.controller.snapshot().counts.manualScans==1 and quiet.controller.snapshot().counts.healthScans==0,'manual recovery is not reported as an automatic health scan')
+quiet.complete({phase='complete',ok=true,applied=1})
+quiet.state.windows[1].fingerprint='child-added';quiet.state.windows[1].layoutFingerprint='chat:1:loaded|artifact:2:loaded'
+quiet.advance(0.1);quiet.advance(1.1)
+check(#quiet.state.requests==3,'new frame topology still starts discovery in quiet mode')
+quiet.complete();quiet.state.windows[1].loading=true;quiet.state.windows[1].fingerprint='loading';quiet.state.windows[1].layoutFingerprint='chat:1:loading'
+quiet.advance(2);check(#quiet.state.requests==3,'observed reload waits for loading to finish')
+quiet.state.windows[1].loading=false;quiet.state.windows[1].fingerprint='loaded';quiet.state.windows[1].layoutFingerprint='chat:1:loaded'
+quiet.advance(0.1);quiet.advance(1.1)
+check(#quiet.state.requests==4,'observed reload recovers automatically in quiet mode')
+quiet.complete();quiet.state.frontmost=false;quiet.controller.refresh();quiet.advance(2)
+check(#quiet.state.requests==4,'manual action does not focus a background app')
+quiet.controller.stop();quiet.state.frontmost=true;quiet.controller.refresh();quiet.advance(2)
+check(#quiet.state.requests==4,'delayed manual action cannot restart a stopped watcher')
 
 local f=fixture();check(#f.state.requests==0,'discovery debounces before opening tools')
 f.advance(1.1);check(#f.state.requests==1,'idle focused window starts one scan')
@@ -38,6 +68,15 @@ f.complete();check(f.controller.snapshot().counts.completed==1,'complete receipt
 f.advance(2);check(#f.state.requests==1,'healthy unchanged metadata does not repeatedly open tools')
 f.state.windows[1].fingerprint='new-child-frame';f.advance(1);check(#f.state.requests==1,'frame discovery debounced')
 f.advance(1.1);check(#f.state.requests==2,'frame metadata change rescans focused source')
+
+f=fixture({config={recoveryOnActivation=false}})
+f.state.windows[1].sourceURL='file:///Applications/Claude.app/Contents/Resources/app.asar/.vite/renderer/main_window/index.html'
+f.state.windows[1].fingerprint='shell-first';f.state.windows[1].layoutFingerprint='shell:1:loaded'
+f.advance(5)
+check(#f.state.requests==0 and f.controller.snapshot().phase=='waiting-for-web-content','cold startup does not open tools against the temporary main shell')
+f.state.windows[1].sourceURL='https://claude.ai/new';f.state.windows[1].fingerprint='guest-ready';f.state.windows[1].layoutFingerprint='shell:1:loaded|chat:2:loaded'
+f.advance(0.1);f.advance(1.1)
+check(#f.state.requests==1 and f.state.requests[1].sourceURL=='https://claude.ai/new','guest readiness starts the initial scan with the current exact chat URL')
 
 f=fixture();f.advance(1.1)
 f.complete({phase='complete',ok=true,applied=1,contexts=2,copyVerifications=1,toolsClosed=true,clipboardRestored=true,sourceURL='PRIVATE',
@@ -56,6 +95,57 @@ check(f.controller.snapshot().lastApplied.applied==1,'later failure does not era
 f.state.pid=124;f.state.windows[1].pid=124;f.advance(1)
 check(f.controller.snapshot().lastApplied==nil,'process change clears old application evidence')
 check(f.controller.snapshot().lastCompleted==nil,'process change clears old completed scan evidence')
+for _,reason in ipairs({'clipboard-changed-or-restore-failed','tools-cleanup-failed'})do
+  f=fixture();f.advance(1.1);f.complete({phase='failure',ok=false,reason=reason})
+  check(f.controller.snapshot().lastFailure.reason==reason,'cleanup failure reason remains specific and safe')
+end
+
+f=fixture();f.advance(1.1);f.advance(2.25)
+local failedResult={phase='failure',reason='timeout',failurePhase='await-result',elapsedSeconds=2.25,
+ phaseDurations={open=0.25,paste=1.5,['await-result']=0.5,PRIVATE=4,['https://private.invalid']=1,cleanup=-1},
+ applied=1,contexts=4,skipped=2,copyVerifications=1,cleanupRequired=false,clipboardRestored=true,toolsClosed=true,
+ sourceURL='https://private.invalid',title='PRIVATE',text='PRIVATE',documentId='PRIVATE'}
+f.complete(failedResult)
+local failure=f.controller.snapshot().lastFailure
+check(failure.reason=='timeout' and failure.phase=='await-result' and failure.stage=='transaction','terminal failure retains fixed reason, failing phase, and stage')
+check(failure.elapsedSeconds==2.25 and failure.phaseDurations.open==0.25 and failure.phaseDurations.paste==1.5,'safe elapsed and per-phase seconds retained')
+check(failure.applied==1 and failure.contexts==4 and failure.skipped==2 and failure.copyVerifications==1,'partial scan counts retained for retry diagnosis')
+check(failure.clipboardRestored and failure.toolsClosed and failure.cleanupRequired==false,'failure cleanup evidence retained independently of result success')
+check(failure.sourceURL==nil and failure.title==nil and failure.text==nil and failure.documentId==nil,'failure receipt does not retain private fields')
+check(failure.phaseDurations.PRIVATE==nil and failure.phaseDurations['https://private.invalid']==nil and failure.phaseDurations.cleanup==nil,'phase timing accepts only known names and bounded nonnegative seconds')
+local driverTiming=f.controller.snapshot().lastDriver
+check(driverTiming.elapsedSeconds==2.25 and driverTiming.phaseDurations['await-result']==0.5,'current driver exposes safe timing')
+failure.phaseDurations.open=99;failedResult.phaseDurations.open=88
+check(f.controller.snapshot().lastFailure.phaseDurations.open==0.25,'stored failure timing is detached from driver and returned snapshots')
+f.advance(5.1);f.complete({phase='complete',ok=true,applied=1})
+check(f.controller.snapshot().counts.completed==1 and f.controller.snapshot().lastFailure.reason=='timeout','successful retry preserves the previous failure diagnosis')
+check(f.controller.snapshot().lastDriver.reason==nil and f.controller.snapshot().lastFailure.phaseDurations.open==0.25,'successful current driver does not erase retained failure timing')
+f.state.pid=124;f.state.windows[1].pid=124;f.advance(1)
+check(f.controller.snapshot().lastFailure==nil,'new process clears old failure evidence')
+
+f=fixture();f.advance(1.1);f.advance(3.1234)
+f.complete({phase='PRIVATE',failurePhase='private-phase',reason='PRIVATE_DATA',elapsedSeconds=-1,
+ phaseDurations={open=math.huge,paste=0/0,execute=3601,['await-result']=0.125},contexts=10001,applied=-1,cleanupRequired='PRIVATE'})
+failure=f.controller.snapshot().lastFailure
+check(failure.reason=='driver-failed' and failure.phase=='failure','unknown even token-shaped reason and phase use safe constants')
+check(failure.elapsedSeconds==3.123,'missing or invalid driver elapsed uses coordinator job time rounded to milliseconds')
+check(failure.phaseDurations.open==nil and failure.phaseDurations.paste==nil and failure.phaseDurations.execute==nil and failure.phaseDurations['await-result']==0.125,'nonfinite and oversized phase timings are excluded')
+check(failure.contexts==nil and failure.applied==nil and failure.cleanupRequired==nil,'invalid failure count and flag types are excluded')
+driverTiming=f.controller.snapshot().lastDriver
+check(driverTiming.phase==nil and driverTiming.reason==nil and driverTiming.failurePhase==nil and driverTiming.elapsedSeconds==nil,'current driver excludes unknown protocol labels and invalid elapsed time')
+
+f=fixture();f.state.refuse='clipboard-unavailable';f.advance(1.1)
+failure=f.controller.snapshot().lastFailure
+check(failure.stage=='begin' and failure.phase=='begin' and failure.reason=='clipboard-unavailable' and failure.elapsedSeconds==0,'failed begin is retained without stale previous driver data')
+f=fixture();f.state.refuse='PRIVATE_DATA';f.advance(1.1)
+check(f.controller.snapshot().lastFailure.reason=='driver-begin-failed','unknown begin failure text is never retained')
+f=fixture();f.state.refuse='busy';f.advance(1.1)
+check(f.controller.snapshot().lastFailure==nil,'busy wait is not recorded as a failed transaction')
+f=fixture();f.advance(1.1);f.complete({phase='cleanup',cleanupRequired=true,ok=false})
+check(f.controller.snapshot().lastFailure==nil,'pending cleanup is not recorded prematurely as a terminal failure')
+f=fixture();f.advance(1.1);f.driver.snapshot=function()error('PRIVATE_EXCEPTION')end;f.advance(1)
+failure=f.controller.snapshot().lastFailure
+check(failure.reason=='adapter-failed' and failure.phase=='coordinator' and failure.stage=='coordinator','coordinator exception retains safe fixed diagnosis without exception text')
 
 f=fixture();f.state.idle=0;f.advance(10);check(#f.state.requests==0,'typing prevents work')
 f.state.idle=3;f.state.frontmost=false;f.advance(1);check(#f.state.requests==0,'background app never focused by watcher')
@@ -341,6 +431,8 @@ n.hs.window=nil
 local windows=n.adapter.windows();check(#windows==1 and windows[1].sourceURL=='https://claude.ai/chat/fixture','shallow chat preferred over shell and artifact')
 local fingerprint=windows[1].fingerprint
 local structure=windows[1].structureFingerprint
+local layout=windows[1].layoutFingerprint
+check(type(layout)=='string' and not layout:find('/chat/fixture',1,true),'passive frame layout excludes recognized chat identifiers')
 local roleReads=n.window.reads.AXChildren
 check(n.adapter.windows()[1].fingerprint==fingerprint,'stable AX element identities do not cause perpetual dirty')
 check(n.window.reads.AXChildren==roleReads,'metadata traversal reused for at least two seconds')
@@ -348,12 +440,18 @@ n.content.attrs.AXChildren={node({AXRole='AXWebArea',AXURL='about:srcdoc',AXChil
 n.state.axCallback(nil,n.content,'AXLayoutChanged')
 local replaced=n.adapter.windows()[1]
 check(replaced.fingerprint~=fingerprint and replaced.structureFingerprint==structure,'same-URL child replacement separates AX identity from frame URL structure')
+check(replaced.layoutFingerprint==layout,'AX identity churn preserves the passive frame layout')
+n.chat.attrs.AXURL='https://claude.ai/chat/another-fixture';n.state.axCallback(nil,n.chat,'AXLayoutChanged')
+check(n.adapter.windows()[1].layoutFingerprint==layout,'chat route changes preserve the native passive frame layout')
+n.chat.attrs.AXLoaded=false;n.state.axCallback(nil,n.chat,'AXLayoutChanged')
+check(n.adapter.windows()[1].layoutFingerprint~=layout,'observed loading changes the passive frame layout')
+n.chat.attrs.AXLoaded=nil
 n.window.attrs.AXChildren={n.artifact}
 n.state.axCallback(nil,n.window,'AXLayoutChanged')
 check(n.adapter.windows()[1].sourceURL==n.artifact.attrs.AXURL,'independent artifact source accepted when no chat web area exists')
-n.state.axCallback(nil,n.chat,'AXLoadComplete');check(#dirty==3,'AX load event delivered without document text')
+n.state.axCallback(nil,n.chat,'AXLoadComplete');check(#dirty==5,'AX load event delivered without document text')
 n.window.attrs.AXTitle='Developer Tools - synthetic';n.state.axCallback(nil,n.window,'AXLayoutChanged')
-check(#dirty==3,'own DevTools metadata events are ignored')
+check(#dirty==5,'own DevTools metadata events are ignored')
 local childrenReads=n.window.reads.AXChildren
 check(n.adapter.windows()[1].isTools,'native tools detected by window title')
 check(n.window.reads.AXChildren==childrenReads,'independent DevTools root traversal skipped')
@@ -520,7 +618,8 @@ loadfile=function(path)
   return originalLoadfile(path)
 end
 local ok,errorMessage=pcall(function()
-  local controller=M.start({bundlePath='/bundle.json',driverPath='/driver.lua',adapter=fakeAdapter},fakeHS)
+  local controller=M.start({bundlePath='/bundle.json',driverPath='/driver.lua',adapter=fakeAdapter,scanTimeout=120},fakeHS)
+  check(captured.scanTimeout==120,'overall scan budget reaches the driver unchanged')
   check(started==1 and type(captured.probe)=='function' and type(captured.payload)=='function','start passes template functions to driver')
   local nonce,id='0123456789abcdef0123456789abcdef','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   check(captured.probe(nonce,nil)=='probe("'..nonce..'",null)','nil source guard encoded as JSON null')
@@ -533,6 +632,22 @@ local ok,errorMessage=pcall(function()
   controller.stop();check(started==0 and timerStopped==1,'start handle stops driver and coordinator timer')
   local injected=M.start({bundlePath='/bundle.json',driverPath='/driver.lua',adapter=fakeAdapter,driver=driver},fakeHS)
   check(started==0,'injected driver avoids constructing a native driver');injected.stop()
+
+  local menuDeleted,delayed,menuItems=false,nil,nil
+  fakeHS.menubar={new=function()return {
+    setTitle=function()end,setTooltip=function()end,
+    setMenu=function(_,fn)menuItems=fn end,
+    delete=function()menuDeleted=true end,
+  }end}
+  fakeHS.timer.doAfter=function(seconds,fn)check(seconds==3,'manual recovery gives time to return to Claude');delayed=fn end
+  local menuController=M.start({bundlePath='/bundle.json',driverPath='/driver.lua',adapter=fakeAdapter,driver=driver},fakeHS)
+  check(menuController.snapshot().recoveryOnActivation==false,'production startup defaults to quiet navigation')
+  local items=menuItems()
+  check(items[2].title=='Waiting for Claude' and items[3].title=='Last result: not applied yet','menu separates current waiting activity from application evidence')
+  items[4].fn();check(type(delayed)=='function','manual menu action schedules recovery')
+  menuController.stop();check(menuDeleted,'stopping removes the status menu')
+  delayed();check(menuController.snapshot().running==false,'pending menu recovery cannot restart stopped controller')
+  fakeHS.menubar=nil
 
   local writes,writeCalls,failWrites={},0,false
   fakeHS.json.write=function(value,path)

@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- Add a complete bounded direct font/controller plan with shared production health checks and semantic tests.
+- Verify local console focus before direct writes and wait safely for asynchronous focus acknowledgements.
+- Verify child-frame handoffs against both the target and chat parent, and classify browser ancestry before creating document identities.
+- Verify clean temporary-home and live-profile removal/reinstallation separately from first-run OS permissions.
+- Replace nine static TTF faces with the unmodified official Estedad 7.3 variable WOFF2; retain weights 100–900 in one face.
+- Reduce the chat console payload from about 2.19 MB to 186 KB.
+- Retain safe failure reasons and phase timings across successful retries.
+- Wait for the guest chat on cold startup instead of targeting the temporary local shell.
+- Distinguish a completely inspected native nonmodal dialog from the single exact console candidate.
+- Bound each frame separately while keeping a hard overall scan limit.
+- Diagnose bounded prompt traversal and clear large source echoes only in the newly owned console after document verification.
+- Add an isolated direct-dispatch experiment and synthetic JavaScript/ownership tests; keep it outside the default installer.
+- Reuse confirmed controllers across same-layout chat navigation and accessibility identity changes.
+- Disable activation health scans by default; retain explicit compatibility recovery.
+- Add a CDT status menu and delayed manual reapplication without forcing app focus.
+- Cover empty textbox composers and nested chat-input textareas; upgrade the renderer revision.
+- Explain idle startup, result evidence, optional IPC, and manual recovery limits.
+- Count manual reapplication separately from automatic health scans.
+- Record live navigation, cold-start, reload, document, comment, clipboard, and recovery checks, including two automatic retries.
+
 ## 1.0.0
 
 Initial release of Claude Desktop Tweaks.
