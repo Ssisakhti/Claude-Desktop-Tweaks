@@ -366,8 +366,12 @@ func (m Model) body(w, h int) string {
 			note = "Claude is open. Save your work and quit it, then press R."
 			color = yellow
 		}
-		return heading("Your setup, ready to apply.", "Review your choices before anything changes.") + "\n\n" + m.summary(w) + "\n\n" + lip.NewStyle().Foreground(color).Width(w).Render(note) + "\n\n" + dim.Width(w).Render("The current extension is backed up when replaced. Open Claude normally after setup.")
+		return heading("Your setup, ready to apply.", "Review your choices before anything changes.") + "\n\n" + m.summary(w) + "\n\n" + lip.NewStyle().Foreground(color).Width(w).Render(note) + "\n\n" + dim.Width(w).Render(m.startupHint())
 	case "download":
+		if m.status.Platform == "windows" {
+			return heading("Claude Desktop is missing.", "Install the official Windows app first.") + "\n\n" + text.Width(w).Render("Source       Anthropic's official Claude Setup\nVerification Windows vendor signature\nPermission   Approve any system prompt yourself") + "\n\n" + dim.Width(w).Render("This downloads and opens Claude Setup. After installation, open Claude once, quit it, and return here. No download starts until you approve.") + "\n\n" + accent.Render("Approve Claude Setup download?  [y/N]")
+		}
+
 		if m.status.Platform == "linux" {
 			return heading("Claude Desktop is missing.", "Install the official Ubuntu or Debian package.") + "\n\n" + text.Width(w).Render("Source       Anthropic's signed apt repository\nDestination  System package manager\nVerification Vendor key fingerprint and apt signatures") + "\n\n" + dim.Width(w).Render("Installs Claude and required packages. A system permission prompt will request administrator approval. Requires PolicyKit (pkexec). Repository settings stay available for future updates. No installation starts until you approve.") + "\n\n" + accent.Render("Approve package installation?  [y/N]")
 		}
@@ -382,6 +386,7 @@ func (m Model) body(w, h int) string {
 		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		return heading(accent.Render(frames[m.frame%len(frames)]+"  "+label), detail) + "\n\n" + m.summary(w) + "\n\n" + dim.Width(w).Render("Please keep this window open until setup finishes. Your apps will not be quit automatically.")
 	case "done":
+
 		return heading(lip.NewStyle().Foreground(green).Render("✓  You are all set."), "Your preferences have been installed.") + "\n\n" + m.summary(w) + "\n\n" + accent.Render("Open Claude normally to apply your choices.") + "\n" + dim.Width(w).Render("Run claude-tweaks again whenever you want to change them.")
 	case "error":
 		e := m.err
@@ -462,8 +467,15 @@ func fit(s string, w, h int) string {
 func (m Model) Error() error { return m.err }
 
 func (m Model) platformName() string {
+	if m.status.Platform == "windows" {
+		return "Windows 11"
+	}
 	if m.status.Platform == "linux" {
 		return "Linux"
 	}
 	return "macOS"
+}
+
+func (m Model) startupHint() string {
+	return "The current extension is backed up when replaced. Open Claude normally after setup."
 }

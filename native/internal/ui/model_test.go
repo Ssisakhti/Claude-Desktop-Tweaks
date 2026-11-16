@@ -207,3 +207,19 @@ func TestLinuxInterfaceHasCorrectPlatformAndConsent(t *testing.T) {
 		t.Fatal("wrong Linux prerequisite consent")
 	}
 }
+
+func TestWindowsInterfaceUsesItsLauncherAndConsent(t *testing.T) {
+	m, _ := ready()
+	m.status.Platform = "windows"
+	if text := ansi.Strip(m.View().Content); !strings.Contains(text, "Windows 11") {
+		t.Fatal("wrong Windows badge")
+	}
+	m.screen = "done"
+	if text := ansi.Strip(m.View().Content); !strings.Contains(text, "Open Claude normally") || strings.Contains(text, "Start menu") {
+		t.Fatal("ordinary Windows launch not preserved")
+	}
+	m.screen = "download"
+	if text := ansi.Strip(m.View().Content); !strings.Contains(text, "Claude Setup") || strings.Contains(text, "Applications folder") {
+		t.Fatal("wrong prerequisite step")
+	}
+}

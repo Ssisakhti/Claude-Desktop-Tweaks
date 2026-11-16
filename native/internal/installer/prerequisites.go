@@ -28,6 +28,9 @@ func (i *Installer) claudePath() string {
 	return ""
 }
 func (i *Installer) Check() (Status, error) {
+	if i.Platform == "windows" {
+		return i.checkWindows()
+	}
 	if i.Platform == "linux" {
 		return i.checkLinux()
 	}
@@ -69,6 +72,9 @@ func (i *Installer) Check() (Status, error) {
 func (i *Installer) InstallClaude(confirmed bool) (retErr error) {
 	if !confirmed {
 		return errors.New("explicit confirmation is required before downloading Claude")
+	}
+	if i.Platform == "windows" {
+		return i.installWindowsClaude()
 	}
 	if i.Platform == "linux" {
 		return i.installLinuxClaude()

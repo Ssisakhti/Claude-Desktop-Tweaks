@@ -9,7 +9,7 @@ jobs:
   native:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-15]
+        os: [ubuntu-latest, macos-15, windows-2025]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +26,16 @@ jobs:
       - run: go vet ./...
         working-directory: native
       - run: bash scripts/build-native-release.sh test
+      - name: Windows bootstrap checks
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./test/bootstrap-windows.ps1
+      - name: Smoke-test Windows executable
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          ./dist/claude-tweaks_windows_amd64.exe --version
+          ./dist/claude-tweaks_windows_amd64.exe --help
       - name: Smoke-test native Linux executable
         if: runner.os == 'Linux'
         run: |
@@ -37,4 +47,5 @@ jobs:
           path: |
             dist/claude-tweaks_darwin_*
             dist/claude-tweaks_linux_*
+            dist/claude-tweaks_windows_amd64.exe
             dist/checksums.txt

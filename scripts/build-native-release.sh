@@ -13,6 +13,11 @@ for arch in arm64 amd64; do
  GOOS=$platform GOARCH=$arch CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$version" -o "$root/dist/claude-tweaks_${platform}_$arch" ./cmd/claude-tweaks
 done
 done
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$version" -o "$root/dist/claude-tweaks_windows_amd64.exe" ./cmd/claude-tweaks
 cd "$root/dist"
-shasum -a 256 claude-tweaks_darwin_arm64 claude-tweaks_darwin_amd64 claude-tweaks_linux_arm64 claude-tweaks_linux_amd64 > checksums.txt
-printf 'Built standalone macOS and Linux releases in dist/.\n'
+if command -v sha256sum >/dev/null 2>&1; then
+ sha256sum claude-tweaks_darwin_arm64 claude-tweaks_darwin_amd64 claude-tweaks_linux_arm64 claude-tweaks_linux_amd64 claude-tweaks_windows_amd64.exe > checksums.txt
+else
+ shasum -a 256 claude-tweaks_darwin_arm64 claude-tweaks_darwin_amd64 claude-tweaks_linux_arm64 claude-tweaks_linux_amd64 claude-tweaks_windows_amd64.exe > checksums.txt
+fi
+printf 'Built standalone macOS, Linux, and Windows releases in dist/.\n'

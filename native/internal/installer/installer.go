@@ -18,7 +18,6 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -39,11 +38,12 @@ type Features struct {
 func DefaultFeatures() Features { return Features{true, true, true} }
 
 type Receipt struct {
-	Features             Features `json:"features"`
-	ExtensionSHA256      string   `json:"extensionSha256"`
-	PreviousReactProfile *string  `json:"previousReactProfile"`
-	HammerspoonBackup    string   `json:"hammerspoonBackup"`
-	LauncherSHA256       string   `json:"launcherSha256,omitempty"`
+	Features                 Features `json:"features"`
+	ExtensionSHA256          string   `json:"extensionSha256"`
+	PreviousReactProfile     *string  `json:"previousReactProfile"`
+	PreviousReactProfileKind string   `json:"previousReactProfileKind,omitempty"`
+	HammerspoonBackup        string   `json:"hammerspoonBackup"`
+	LauncherSHA256           string   `json:"launcherSha256,omitempty"`
 }
 type Result struct {
 	Changed bool   `json:"changed"`
@@ -51,13 +51,15 @@ type Result struct {
 }
 type Runner func(string, ...string) (string, error)
 type Installer struct {
-	Home         string
-	Platform     string
-	Run          Runner
-	Applications string
-	SystemRoot   string
-	ConfigHome   string
-	DataHome     string
+	Home              string
+	Platform          string
+	Run               Runner
+	Applications      string
+	SystemRoot        string
+	ConfigHome        string
+	DataHome          string
+	windows           windowsSystem
+	NotifyEnvironment func() error
 }
 type ExitError struct{ Code int }
 
@@ -65,7 +67,7 @@ func (e ExitError) Error() string       { return fmt.Sprintf("system command exi
 func exitCode(err error, code int) bool { var e ExitError; return errors.As(err, &e) && e.Code == code }
 func RunSystem(command string, args ...string) (string, error) {
 	timeout := 15 * time.Second
-	if command == "/usr/bin/curl" || command == "/usr/bin/pkexec" {
+	if command == "/usr/bin/curl" || command == "/usr/bin/pkexec" || command == "powershell.exe" {
 		timeout = 10 * time.Minute
 	}
 	if command == "/usr/bin/hdiutil" || command == "/usr/bin/ditto" {
@@ -126,12 +128,18 @@ func token() string {
 	return hex.EncodeToString(b[:])
 }
 func (i *Installer) target() string {
+	if i.Platform == "windows" {
+		return filepath.Join(i.windowsProfile(), "extensions", ExtensionID)
+	}
 	if i.Platform == "linux" {
 		return filepath.Join(i.linuxConfig(), "Claude/extensions", ExtensionID)
 	}
 	return filepath.Join(i.Home, "Library/Application Support/Claude/extensions", ExtensionID)
 }
 func (i *Installer) stateDir() string {
+	if i.Platform == "windows" {
+		return filepath.Join(i.windows.LocalAppData, "Claude Desktop Tweaks")
+	}
 	if i.Platform == "linux" {
 		return filepath.Join(i.linuxData(), "Claude Desktop Tweaks")
 	}
@@ -164,18 +172,11 @@ func (i *Installer) files() (*safeFS, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !ownedDir(s) {
+	if !ownedDir(s, i.Home) {
 		return nil, errors.New("home directory is not safe")
 	}
 	r, err := os.OpenRoot(i.Home)
 	return &safeFS{r, i.Home}, err
-}
-func owned(s os.FileInfo) bool {
-	st, ok := s.Sys().(*syscall.Stat_t)
-	return ok && st.Uid == uint32(os.Getuid())
-}
-func ownedDir(s os.FileInfo) bool {
-	return s.IsDir() && s.Mode()&os.ModeSymlink == 0 && owned(s) && s.Mode().Perm()&0022 == 0
 }
 func (f *safeFS) rel(p string) (string, error) {
 	r, err := filepath.Rel(f.home, p)
@@ -219,7 +220,7 @@ func (f *safeFS) parents(p string, create bool) error {
 		if err != nil {
 			return err
 		}
-		if !ownedDir(s) {
+		if !ownedDir(s, filepath.Join(f.home, current)) {
 			return errors.New("installation directory is unowned, writable by others, or symbolic")
 		}
 	}
@@ -233,11 +234,11 @@ func (f *safeFS) read(p string) ([]byte, error) {
 	if err != nil || s == nil {
 		return nil, err
 	}
-	if !s.Mode().IsRegular() || !owned(s) || s.Size() > 4*1024*1024 {
+	if !s.Mode().IsRegular() || !owned(s, p) || s.Size() > 4*1024*1024 {
 		return nil, errors.New("invalid installation file")
 	}
 	r, _ := f.rel(p)
-	file, err := f.root.OpenFile(r, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	file, err := f.root.OpenFile(r, os.O_RDONLY|noFollowFlag, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +302,7 @@ func (f *safeFS) createExclusive(p string, b []byte) (os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	file, err := f.root.OpenFile(r, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0600)
+	file, err := f.root.OpenFile(r, os.O_WRONLY|os.O_CREATE|os.O_EXCL|noFollowFlag, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +339,7 @@ func (f *safeFS) writeCreated(p string, file createdFile, b []byte) (identity os
 
 // Remove only the captured regular file, never recursively remove a replacement.
 func (f *safeFS) removeCreated(p string, identity os.FileInfo) error {
-	if identity == nil || !identity.Mode().IsRegular() || !owned(identity) {
+	if identity == nil || !identity.Mode().IsRegular() || !owned(identity, p) {
 		return errors.New("created file identity cannot be verified")
 	}
 	if err := f.parents(filepath.Dir(p), false); err != nil {
@@ -351,7 +352,7 @@ func (f *safeFS) removeCreated(p string, identity os.FileInfo) error {
 	if current == nil {
 		return nil
 	}
-	if !current.Mode().IsRegular() || !owned(current) || !os.SameFile(current, identity) {
+	if !current.Mode().IsRegular() || !owned(current, p) || !os.SameFile(current, identity) {
 		return errors.New("created file was replaced; the replacement was preserved")
 	}
 	r, err := f.rel(p)
@@ -460,6 +461,9 @@ func migrateConfig(b []byte) ([]byte, error) {
 }
 
 func (i *Installer) Install(features Features) (result Result, retErr error) {
+	if i.Platform == "windows" {
+		return i.installWindows(features)
+	}
 	if i.Platform == "linux" {
 		return i.installLinux(features)
 	}

@@ -34,7 +34,7 @@ func run(args []string) error {
 			fmt.Println("Claude Desktop Tweaks " + version)
 			return nil
 		case "--help", "-h":
-			fmt.Println("Claude Desktop Tweaks\n\nRun without arguments for interactive setup and settings.\n--check     Read-only system status as JSON\n--version   Show version\n--licenses  Show bundled license notices\n\nmacOS, Ubuntu 22.04+, Debian 12+. No Node.js or Go required. Quit Claude before applying changes.")
+			fmt.Println("Claude Desktop Tweaks\n\nRun without arguments for interactive setup and settings.\n--check     Read-only system status as JSON\n--version   Show version\n--licenses  Show bundled license notices\n\nmacOS, Ubuntu 22.04+, Debian 12+, Windows 11 x64. No Node.js or Go required. Quit Claude before applying changes.")
 			return nil
 		}
 	}
