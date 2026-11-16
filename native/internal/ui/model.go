@@ -338,8 +338,8 @@ func (m Model) body(w, h int) string {
 		return strings.Join(rows, "\n")
 	case "features":
 		rows := []string{heading("Make Claude feel like yours.", "Choose any combination. Change it any time."), ""}
-		names := []string{"Persian font", "Nord theme", "Right-to-left"}
-		descs := []string{"Estedad variable · weights 100–900", "Polar Night surfaces · Frost accents", "Mixed Persian and English · content-aware"}
+		names := []string{"Persian font", "Theme", "Right-to-left"}
+		descs := []string{"Estedad variable · weights 100–900", "Nord · Polar Night surfaces · Frost accents", "Mixed Persian and English · content-aware"}
 		values := []bool{m.draft.Font, m.draft.Theme, m.draft.RTL}
 		for n, name := range names {
 			on, mark := "OFF", "○"

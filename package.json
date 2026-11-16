@@ -1,6 +1,6 @@
 {
   "name": "claude-desktop-tweaks",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Estedad fonts, mixed-direction text, and the Nord theme for Claude Desktop on macOS",
   "type": "commonjs",
   "main": "bin/claude-desktop-tweaks.cjs",

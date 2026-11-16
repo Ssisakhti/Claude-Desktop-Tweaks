@@ -4,7 +4,7 @@ The standalone macOS installer uses Bubble Tea 2 and Lip Gloss 2. Its English in
 
 ## Availability
 
-[Version 1.1.1](https://github.com/Ssisakhti/Claude-Desktop-Tweaks/releases/tag/v1.1.1) includes standalone Apple silicon and Intel executables. The release workflow creates drafts for review before later versions are published.
+[Version 1.1.2](https://github.com/Ssisakhti/Claude-Desktop-Tweaks/releases/tag/v1.1.2) includes standalone Apple silicon and Intel executables. The release workflow creates drafts for review before later versions are published.
 
 ## Install with one command
 
@@ -14,7 +14,7 @@ curl --fail --silent --show-error --location --proto '=https' --proto-redir '=ht
 
 The bootstrap detects Apple silicon or Intel, resolves one release version, downloads the executable and its SHA-256 checksum from that release, verifies the download, and opens the terminal interface. It installs into a private, versioned folder under `~/Library/Application Support/Claude Desktop Tweaks/releases/`. It preserves existing executables with different contents and does not edit your shell profile or PATH. The checksum detects corrupted or mismatched downloads; release authenticity relies on HTTPS and the repository's release access controls.
 
-The command prints the full path to reopen settings. Run that path or repeat the installation command to change your choices. `--no-launch` downloads and verifies without opening the interface. `--version v1.1.1` pins a particular published release.
+The command prints the full path to reopen settings. Run that path or repeat the installation command to change your choices. `--no-launch` downloads and verifies without opening the interface. `--version v1.1.2` pins a particular published release.
 
 ## Controls and settings
 

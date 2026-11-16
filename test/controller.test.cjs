@@ -18,10 +18,11 @@ function deferred() {
  let resolve; const promise = new Promise(done => { resolve = done; });
  return { promise, resolve };
 }
-function fixture({ gate = null, failWeight = null, directionRegression = false, shellDark = false, historyCount = 0, styleRegression = false } = {}) {
+function fixture({ gate = null, failWeight = null, directionRegression = false, shellDark = false, historyCount = 0, styleRegression = false, suggestion = null } = {}) {
  const { document } = parseHTML(`<!doctype html><html class="${shellDark ? '' : 'dark'}"><head></head><body${shellDark ? ' class="darkTheme"' : ''}>
    <aside${directionRegression ? ' dir="rtl"' : ''}><button id="project" data-native-font='"Sidebar Native", sans-serif'>پروژهٔ فارسی</button></aside>
    ${styleRegression ? '<nav><button id="title-row"><span class="truncate" id="mixed-title">Agent برنامه ۲ Postgres</span></button></nav><div role="tooltip"><div id="tooltip-title">Agent برنامه ۲ Postgres</div><div id="tooltip-time">13h ago</div></div><div data-testid="assistant-message"><pre id="prose-pre"><code id="prose-code">## عنوان فارسی\nاین متن فارسی برای بررسی نمایش متن است.</code></pre></div>' : ''}
+   ${suggestion===null?'':`<div data-cds="ChatComposer" id="suggestion-shell" style="display:flex"><div data-cds="ChatComposerEditor" id="suggestion-editor-shell"><div role="textbox" contenteditable="true" class="ProseMirror" id="suggestion-editor"><p id="empty-suggestion-editor"></p></div><div data-prompt-suggestion-ghost aria-hidden="true" class="truncate" id="suggestion">${suggestion}</div></div><button id="suggestion-control">Accept</button></div>`}
    <main>${Array.from({length:historyCount},(_,i)=>`<div data-testid="assistant-message"><p id="history-${i}">این پیام قدیمی شمارهٔ ${i} است.</p></div>`).join('')}<div data-testid="assistant-message">
      <h1 id="heading" data-native-font='"Native Heading", serif'>API عنوان فارسی برای بررسی</h1>
      <p id="paragraph" data-native-font='"Native Body", sans-serif'>API باید این متن فارسی را درست نمایش دهد.</p>
@@ -102,7 +103,7 @@ function fixture({ gate = null, failWeight = null, directionRegression = false, 
 
 test('Snapshots and standalone toString functions match the module revision',async()=>{
  const f=fixture();
- assert.equal(CONTROLLER_REVISION,7);
+ assert.equal(CONTROLLER_REVISION,8);
  assert.equal(installController.revision,CONTROLLER_REVISION);
  assert.equal(f.apply.revision,CONTROLLER_REVISION);
  const serialized=vm.runInContext('('+f.apply.toString()+')',f.context);
@@ -505,4 +506,46 @@ test('Changing features disposes the previous controller before applying the new
  const old=f.window[key];await f.apply({kind:'chat',features:{font:false,theme:false,rtl:false}},fonts,f.scope,f.bidi,f.nord);
  assert.notEqual(f.window[key],old);assert.equal(f.state.added.length,0);
  f.window[key].dispose();
+});
+
+
+test('Style an unaccepted Persian suggestion separately from the empty editor and controls',async()=>{
+ const f=fixture({suggestion:'این یک پیشنهاد فارسی است.'});
+ await f.apply({kind:'chat'},fonts,f.scope,f.bidi,f.nord);
+ assert.equal(f.getComputedStyle(f.document.getElementById('suggestion')).direction,'rtl');
+ for(const id of ['suggestion-editor','suggestion-shell','suggestion-control'])assert.equal(f.getComputedStyle(f.document.getElementById(id)).direction,'ltr',id);
+ assert.match(f.getComputedStyle(f.document.getElementById('suggestion')).fontFamily,/Claude Persian Estedad/);
+ assert.equal(f.document.toString(),f.baseline);
+ f.window[key].dispose();
+});
+
+test('A replacement suggestion switches direction immediately even for one English word',async()=>{
+ const f=fixture({suggestion:'این یک پیشنهاد فارسی است.'});await f.apply({kind:'chat'},fonts,f.scope,f.bidi,f.nord);
+ const el=f.document.getElementById('suggestion');
+ el.firstChild.nodeValue='Continue';
+ f.state.observers[0].callback([{type:'characterData',target:el.firstChild}]);
+ const timer=f.state.timers.find(t=>t.delay===180&&!t.cleared);assert.ok(timer);timer.callback();
+ assert.equal(f.getComputedStyle(el).direction,'ltr');
+ f.window[key].dispose();
+});
+
+for(const features of [{font:false,theme:false,rtl:true},{font:true,theme:false,rtl:false}])test(`Suggestion honors independent feature flags ${JSON.stringify(features)}`,async()=>{
+ const f=fixture({suggestion:'این یک پیشنهاد فارسی است.'});await f.apply({kind:'chat',features},fonts,f.scope,f.bidi,f.nord);
+ assert.equal(f.getComputedStyle(f.document.getElementById('suggestion')).direction,features.rtl?'rtl':'ltr');
+ assert.equal(f.state.sheets.map(s=>s.css).join('\n').includes('font-family:"Claude Persian Estedad"'),features.font);
+ f.window[key].dispose();
+});
+
+test('Reusing a suggestion element removes and restores its direction with the preview marker',async()=>{
+ const f=fixture({suggestion:'این یک پیشنهاد فارسی است.'});await f.apply({kind:'chat'},fonts,f.scope,f.bidi,f.nord);
+ const el=f.document.getElementById('suggestion');assert.equal(f.getComputedStyle(el).direction,'rtl');
+ function marker(present){
+  const method=present?'setAttribute':'removeAttribute',guard=el[method];delete el[method];
+  try{if(present)el.setAttribute('data-prompt-suggestion-ghost','');else el.removeAttribute('data-prompt-suggestion-ghost');}finally{el[method]=guard;}
+  f.state.observers[0].callback([{type:'attributes',attributeName:'data-prompt-suggestion-ghost',target:el}]);
+  f.state.timers.filter(t=>t.delay===180&&!t.cleared).at(-1).callback();
+ }
+ marker(false);assert.equal(f.getComputedStyle(el).direction,'ltr');
+ marker(true);assert.equal(f.getComputedStyle(el).direction,'rtl');
+ assert.deepEqual(f.state.mutations,[]);f.window[key].dispose();
 });

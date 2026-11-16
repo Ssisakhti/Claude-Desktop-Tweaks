@@ -397,3 +397,28 @@ test('Current faded navigation labels get one direction without moving row contr
  assert.ok(ids(targets.blocks).includes('label'));
  for(const id of ['row','text','menu','english'])assert.ok(!ids(targets.blocks).includes(id),id);
 });
+
+test('Include the composer suggestion preview without counting it as accepted editor text',()=>{
+ const doc=parseHTML('<html><body><div data-cds="ChatComposer"><div data-testid="chat-input" contenteditable="true" id="draft"><p id="empty"></p><div aria-hidden="true" data-prompt-suggestion-ghost id="suggestion"><span id="suggestion-text">این یک پیشنهاد فارسی است.</span></div></div></div><div aria-hidden="true" id="other-hidden"><p id="other-hidden-text">این متن پنهان است.</p></div><div data-prompt-suggestion-ghost id="foreign-suggestion">این پیشنهاد بیرون از ورودی است.</div></body></html>').document;
+ const before=doc.toString(),targets=collect(doc,'chat');
+ assert.ok(ids(targets.surfaces).includes('suggestion'));
+ assert.ok(ids(targets.blocks).includes('suggestion'));
+ assert.ok(!ids(targets.blocks).includes('other-hidden-text'));
+ assert.ok(!ids(targets.blocks).includes('foreign-suggestion'));
+ assert.equal(contentText(doc.getElementById('suggestion')),'این یک پیشنهاد فارسی است.');
+ assert.equal(contentText(doc.getElementById('draft')),'');
+ assert.equal(doc.toString(),before);
+});
+
+test('Suggestion exception does not expose hidden ancestors or nested hidden annotations',()=>{
+ const doc=parseHTML('<html><body><div data-cds="ChatComposer"><div aria-hidden="true"><div aria-hidden="true" data-prompt-suggestion-ghost id="hidden-preview">این متن باید پنهان بماند.</div></div><div aria-hidden="true" data-prompt-suggestion-ghost id="visible-preview">متن پیشنهاد فارسی<span aria-hidden="true">توضیح پنهان</span></div></div></body></html>').document;
+ const targets=collect(doc,'chat');
+ assert.ok(!ids(targets.blocks).includes('hidden-preview'));
+ assert.equal(contentText(doc.getElementById('hidden-preview')),'');
+ assert.equal(contentText(doc.getElementById('visible-preview')),'متن پیشنهاد فارسی');
+});
+
+test('A preview-like data attribute outside the composer remains ordinary document prose',()=>{
+ const doc=parseHTML('<html><body><article><p id="prose">متن <span data-prompt-suggestion-ghost>فارسی</span> سند</p></article></body></html>').document;
+ assert.equal(contentText(doc.getElementById('prose')),'متن فارسی سند');
+});

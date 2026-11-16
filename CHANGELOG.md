@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.2 — 2026-11-16
+
+- Apply independent font and RTL choices to the unaccepted composer suggestion preview, including its accessibility-hidden text layer.
+- Recompute each replacement suggestion immediately, including short English replacements, without counting the preview as accepted editor text.
+- Preserve composer controls, suggestion visibility and acceptance, and ordinary hidden-content exclusions.
+- Use generic installer release naming; Nord remains a theme choice and the terminal interface palette.
+
 ## 1.1.1 — 2026-11-16
 
 - Remove newly created files after failed writes, syncs, closes, or short writes, including failed installation-lock acquisition.
