@@ -61,6 +61,10 @@ func TestWindowsRejectsWritableInstallationHome(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	system.Run = func(command string, args ...string) (string, error) {
+		out, e := exec.Command(command, args...).CombinedOutput()
+		return string(out), e
+	}
 	if out, e := system.powershell("try {" + script + "} catch {Write-Output $_.Exception.Message;exit 1}"); e != nil {
 		t.Fatalf("permission fixture: %v: %s", e, out)
 	}
