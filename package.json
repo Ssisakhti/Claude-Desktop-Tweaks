@@ -48,6 +48,7 @@
     "scripts/setup.cjs",
     "scripts/build-fonts.cjs",
     "scripts/build-extension.cjs",
+    "scripts/extension-setup.cjs",
     "assets/estedad",
     "assets/nord/LICENSE",
     "README.md",

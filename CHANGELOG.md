@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `--install-extension` and `--extension-dry-run` with a one-command GitHub package install.
+- Automate extension building, login-agent registration, environment setup, and backed-up Hammerspoon migration without Python.
+- Preserve verified installation backups and original environment values; roll back owned changes after installation failures.
+
 - Add an unpacked extension build for automatic font, direction, and Nord application in chat and nested artifact frames.
 - Include document `srcdoc` support, isolated controller lifecycle checks, and bundled font and code licenses.
 - Document installation, Hammerspoon migration, ordinary-launch startup, updates, and rollback.

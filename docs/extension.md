@@ -14,128 +14,81 @@ The manifest registers `all_frames`, `match_about_blank`, and `match_origin_as_f
 
 This method does not require Hammerspoon or an idle keyboard. It was checked on Claude Desktop 5.11492.5. The app still needs time to load each page and decode the local font.
 
-### 1. Prepare the checkout
+### One command
 
-Install Node.js 22.12.0 or later and Python 3. Python is used only to create the login LaunchAgent. Then run:
+Install Node.js 22.12.0 or later and the official Claude Desktop app. Save work and quit Claude first. When migrating from the old integration, quit Hammerspoon too. The installer never quits either app automatically.
 
-```sh
-git clone https://github.com/Ssisakhti/Claude-Desktop-Tweaks.git
-cd Claude-Desktop-Tweaks
-npm ci
-```
-
-For an existing checkout, update it before building. Save work and quit Claude completely. The commands below never quit it for you.
-
-If migrating from the Hammerspoon integration, stop its running handle in Hammerspoon Console with `claudeDesktopTweaks.stop()` and inspect `claudeDesktopTweaks.snapshot()`. Confirm it has stopped and cleanup has finished, as described in the [replacement guide](installation.md#replace-an-active-installation). Then remove only its startup block:
+Run this command in Terminal:
 
 ```sh
-node bin/claude-desktop-tweaks.cjs --remove
+npx --yes --cache="$(mktemp -d)" --package=https://github.com/Ssisakhti/Claude-Desktop-Tweaks/archive/refs/heads/main.tar.gz claude-desktop-tweaks --install-extension
 ```
 
-Keep the printed backup path and reload the Hammerspoon configuration. Do not run both delivery methods together. If no old integration is installed, skip this migration step.
+This creates a fresh temporary npm cache, downloads the current repository package, and runs its Node installer. A fresh cache prevents updates from reusing an older npx executable at the same archive URL. Python, a manual checkout, and manual LaunchAgent editing are not required. The command is specific to macOS.
 
-### 2. Build the extension in Claude's data directory
-
-The folder name below is the React DevTools ID used by Claude's startup hook. The guard refuses to overwrite an existing directory, including a real React DevTools installation.
-
-Run this block from the checkout:
+If you already have the checkout, the equivalent command is:
 
 ```sh
-(
-  set -eu
-  extension_dir="$HOME/Library/Application Support/Claude/extensions/fmkadmapgofadopljbjfkapdkoienihi"
-  if [ -e "$extension_dir" ] || [ -L "$extension_dir" ]; then
-    echo "Extension directory already exists. Identify and back it up before continuing."
-    exit 1
-  fi
-  node scripts/build-extension.cjs "$extension_dir"
-)
+node bin/claude-desktop-tweaks.cjs --install-extension
 ```
 
-If the guard stops, inspect the directory first. Only replace a confirmed installation of this project's extension; keep a backup outside the `extensions` directory. Do not replace another author's extension. The build includes the official font and all license notices and does not depend on the checkout afterward.
+The installer:
 
-### 3. Test one launch
+- Builds the extension with the local Estedad font and all license notices.
+- Registers the login LaunchAgent and sets `REACT_PROFILE=1` for ordinary launches.
+- Removes only the old Hammerspoon startup block when present, preserving unrelated configuration and saving a backup.
+- Saves the original environment value and rollback information in `~/Library/Application Support/Claude Desktop Tweaks/extension-startup.json`.
+- Backs up a verified older installation before updating it and preserves the original rollback value across repeated installs.
+- Refuses unknown extension directories, unowned startup agents, symbolic links, and concurrent installs.
+- Attempts to restore its own changes if installation fails. If rollback is incomplete, it reports that fact and the backup location; preserve those backups.
 
-With Claude fully closed:
+The extension directory is normally used by React DevTools. If it contains an unknown extension, installation stops instead of replacing it. Identify and preserve that installation before deciding how to proceed. Do not delete it just to bypass the check.
 
-```sh
-open -a Claude --env REACT_PROFILE=1
-```
+The launch variable is inherited by other GUI apps too; it is not an app-specific macOS setting. Claude's files, signature, ASAR archive, and security settings are unchanged.
 
-Check a Persian chat, a document artifact, and its comments. Code blocks and table column order must stay unchanged. Fonts and direction apply automatically; no console installation code or Hammerspoon command is needed. If the test fails, do not enable automatic startup.
+### Verify installation
 
-### 4. Enable ordinary launches and login startup
-
-First record the previous environment value for rollback:
-
-```sh
-launchctl getenv REACT_PROFILE
-```
-
-No output means the variable was absent. If it already had a value, keep that value so you can restore it later.
-
-Create a user LaunchAgent. This block refuses to overwrite an existing agent:
-
-```sh
-python3 - <<'PYAGENT'
-from pathlib import Path
-import os
-import plistlib
-
-agent = Path.home() / 'Library/LaunchAgents/local.claude-desktop-tweaks.environment.plist'
-agent.parent.mkdir(parents=True, exist_ok=True)
-job = {
-    'Label': 'local.claude-desktop-tweaks.environment',
-    'ProgramArguments': ['/bin/launchctl', 'setenv', 'REACT_PROFILE', '1'],
-    'RunAtLoad': True,
-}
-with agent.open('xb') as output:
-    plistlib.dump(job, output)
-os.chmod(agent, 0o600)
-PYAGENT
-```
-
-Register the agent and set the current login environment:
-
-```sh
-launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/local.claude-desktop-tweaks.environment.plist"
-launchctl setenv REACT_PROFILE 1
-launchctl getenv REACT_PROFILE
-```
-
-The final command must print `1`. The variable is inherited by other GUI apps too. This is not an app-specific macOS environment setting.
-
-Save work, quit Claude, and open it normally from Dock or Finder, or run:
+Open Claude normally from Dock or Finder, or run:
 
 ```sh
 open -a Claude
 ```
 
-Check the same chat and artifact again. This ordinary-launch check passed locally. A logout/login cycle has not been checked; Claude starting as a login item can race with the agent and may need one relaunch.
+Check a Persian chat, a document artifact, and its comments. Fonts and paragraph direction apply automatically. Code blocks, document text, and table column order must stay unchanged. The installer sets up loading; it does not claim that your app version has passed a live display test.
+
+Ordinary launches passed local acceptance on Claude 5.11492.5. A logout/login cycle remains untested. Claude starting as a login item can race with the environment agent and may need one relaunch.
+
+To preview changes without installing, with the same apps closed, use:
+
+```sh
+npx --yes --cache="$(mktemp -d)" --package=https://github.com/Ssisakhti/Claude-Desktop-Tweaks/archive/refs/heads/main.tar.gz claude-desktop-tweaks --extension-dry-run
+```
+
+Downloading the package can still populate npm's cache. The preview does not write the extension, startup agent, Hammerspoon configuration, or launch environment.
 
 ### Update or remove
 
-To update, save work and quit Claude first. Identify the installed extension by its `manifest.json` name, `Claude Desktop Persian Tweaks`. Move that owned directory to a backup outside `extensions`, then rebuild it with step 2. Never overwrite a directory of uncertain ownership. Open Claude normally and repeat the checks in step 3.
+To update, save work, quit Claude, and run the same installation command again. Verified older files are backed up outside Claude's `extensions` directory. Do not enable the old Hammerspoon watcher alongside the extension.
 
-To remove automatic loading, unload the owned agent:
+Removal is manual. Read the saved rollback record first and keep its backup paths. Unload only the owned agent:
 
 ```sh
 launchctl bootout "gui/$(id -u)/local.claude-desktop-tweaks.environment"
 ```
 
-Move `~/Library/LaunchAgents/local.claude-desktop-tweaks.environment.plist` to a backup folder so it is not loaded at the next login. Restore the environment value you recorded in step 4. If it was absent, run:
+Move `~/Library/LaunchAgents/local.claude-desktop-tweaks.environment.plist` to a backup folder so it is not loaded at the next login. Restore `previousReactProfile` from the record. If it is `null`, run:
 
 ```sh
 launchctl unsetenv REACT_PROFILE
 ```
 
-If it had a value, use `launchctl setenv REACT_PROFILE` followed by that exact value instead.
+If it is a string, use `launchctl setenv REACT_PROFILE` followed by that exact value instead.
 
-If the restored value is absent or is not `1`, save work, quit Claude, and move only this project's confirmed extension directory to a backup outside `extensions`. Open Claude normally to clear the in-memory styles.
+If the restored value is absent or is not `1`, save work, quit Claude, and move only this project's confirmed extension directory to a backup outside `extensions`. Open Claude normally to clear its in-memory styles.
 
-If the previous value was `1`, restoring it keeps the profiling hook enabled. Keep the extension directory until you deliberately disable profiling or replace it with the original extension backup. Do not enable the Hammerspoon integration while this extension is still loaded. Removing the directory with `REACT_PROFILE=1` can make Claude download React DevTools in its place.
+If the previous value was `1`, restoring it keeps the profiling hook enabled. Keep the extension directory until you deliberately disable profiling or replace it with its original extension backup. Removing the directory with `REACT_PROFILE=1` can make Claude download React DevTools in its place.
 
-To return to Hammerspoon, first disable this extension's loading, then restore the Hammerspoon configuration backup with the standard CLI and reload Hammerspoon.
+To return to Hammerspoon, first disable this extension's loading. If `hammerspoonBackup` is present in the rollback record, restore that configuration with the standard `--restore-backup` command and then open or reload Hammerspoon. Never start both methods together.
 
 ## How loading works
 
@@ -167,7 +120,7 @@ After the user fully quit Claude, an ordinary `open -a Claude` launch, without p
 
 A macOS logout/login cycle has not been tested. Other artifact types, native windows, and future Claude versions remain outside this acceptance result.
 
-Synthetic checks passed separately: 139 JavaScript tests, the pinned font check, and the two stable Lua suites (744 and 322 assertions). These counts do not substitute for the live checks above.
+The initial extension acceptance used 139 JavaScript tests, the pinned font check, and the two stable Lua suites (744 and 322 assertions). Installer validation adds temporary-home tests with simulated process and launchctl results: new and repeated installation, migration, ownership refusal, symlink refusal, locks, backups, and failure rollback. These tests do not modify a live system profile and do not substitute for the live frame checks above.
 
 ## Rollback of the local installation
 

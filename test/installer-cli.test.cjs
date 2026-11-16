@@ -4,6 +4,7 @@ const {spawnSync}=require('node:child_process');
 const cli=path.resolve(__dirname,'../bin/claude-desktop-tweaks.cjs');
 test('The CLI provides help and rejects unknown options',()=>{
  const help=spawnSync(process.execPath,[cli,'--help'],{encoding:'utf8'});assert.equal(help.status,0);assert.match(help.stdout,/Claude Desktop Tweaks/);
+ assert.match(help.stdout,/--install-extension/);assert.match(help.stdout,/--extension-dry-run/);
  const invalid=spawnSync(process.execPath,[cli,'--unknown'],{encoding:'utf8'});assert.equal(invalid.status,1);assert.equal(invalid.stdout,'');
 });
 test('The default CLI mode writes no files in the test home',()=>{

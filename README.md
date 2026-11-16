@@ -19,7 +19,15 @@ The tweaks run in memory inside the official app. Claude's files, signature, ASA
 
 The extension applies fonts, text direction, and colors automatically in chat, document artifacts, and comments. It needs no Hammerspoon watcher or idle input period. Local acceptance passed on Claude Desktop 5.11492.5, including an ordinary app launch and nested document reloads.
 
-Follow the [complete automatic installation guide](docs/extension.md#install-on-macos) to build the extension, test it, enable ordinary launches, and migrate from the old integration. The guide also covers updates and removal. The method uses an unofficial startup hook; a macOS logout/login cycle remains untested.
+Save work and quit Claude, then run:
+
+```sh
+npx --yes --cache="$(mktemp -d)" --package=https://github.com/Ssisakhti/Claude-Desktop-Tweaks/archive/refs/heads/main.tar.gz claude-desktop-tweaks --install-extension
+```
+
+Node.js 22.12.0 or later is required. Quit Hammerspoon too when migrating from the old integration; the installer backs up and removes its startup block. Then open Claude normally. No Python or manual startup configuration is needed.
+
+Follow the [complete automatic installation guide](docs/extension.md#install-on-macos) for previews, migration, verification, updates, and rollback. The guide also covers updates and removal. The method uses an unofficial startup hook; a macOS logout/login cycle remains untested.
 
 ## Hammerspoon installation
 
