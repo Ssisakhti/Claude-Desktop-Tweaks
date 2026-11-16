@@ -52,6 +52,12 @@ if ($packages.Count -eq 1) {
  if ($signature.Status.ToString() -ne 'Valid' -or $signature.SignerCertificate.Subject -notlike '*Anthropic, PBC*') {throw 'Claude vendor signature verification failed.'}
  $package=@{family=$p.PackageFamilyName;root=$p.InstallLocation;version=$p.Version.ToString()}
 }
+if ($null -eq $package) {
+ foreach ($name in @('AnthropicClaude','Claude')) {
+  $directory=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) $name
+  if ((Test-Path -LiteralPath (Join-Path $directory 'Update.exe')) -or (Test-Path -LiteralPath (Join-Path $directory 'claude.exe'))) {throw 'An unsupported Claude installation was preserved. Setup requires the official x64 MSIX from Anthropic.'}
+ }
+}
 @{environmentValue=$environmentValue;environmentKind=$environmentKind;build=[int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuildNumber;architecture=[Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString();localAppData=[Environment]::GetFolderPath('LocalApplicationData');roamingAppData=[Environment]::GetFolderPath('ApplicationData');running=@(Get-Process -Name Claude -ErrorAction SilentlyContinue).Count -gt 0;package=$package} | ConvertTo-Json -Compress -Depth 4
 `
 

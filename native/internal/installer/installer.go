@@ -76,6 +76,9 @@ func RunSystem(command string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, command, args...)
+	if e := configureSystemCommand(cmd); e != nil {
+		return "", fmt.Errorf("could not prepare %s", filepath.Base(command))
+	}
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	err := cmd.Run()
