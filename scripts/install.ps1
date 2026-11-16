@@ -84,7 +84,10 @@ function Install-SettingsBinary([string]$ProfileRoot, [string]$DataHome, [string
 }
 
 function Invoke-ClaudeTweaksInstall([string]$Release, [bool]$SkipLaunch) {
-    if ([Environment]::OSVersion.Platform -ne 'Win32NT' -or [int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuildNumber -lt 22000 -or [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString() -ne 'X64') { throw 'This installer supports Windows 11 x64.' }
+    if ([Environment]::OSVersion.Platform -ne 'Win32NT') { throw 'This installer supports Windows 11 x64.' }
+    $build = [int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuildNumber
+    $architecture = [string](Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment').PROCESSOR_ARCHITECTURE
+    if ($build -lt 22000 -or $architecture -ne 'AMD64') { throw 'This installer supports Windows 11 x64.' }
     $repository = 'https://github.com/Ssisakhti/Claude-Desktop-Tweaks'
     if ($Release -eq 'latest') {
         $metadata = [Text.Encoding]::UTF8.GetString((Get-ReleaseBytes 'https://api.github.com/repos/Ssisakhti/Claude-Desktop-Tweaks/releases/latest' 2097152)) | ConvertFrom-Json

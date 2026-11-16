@@ -1,6 +1,6 @@
 # Release information
 
-## 1.3.0
+## 1.3.1
 
 Standalone installers are available for macOS, official Ubuntu/Debian Linux packages, and the official x64 MSIX package on Windows 11. Linux and Windows support are experimental until live Claude checks are complete.
 

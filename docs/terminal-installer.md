@@ -2,7 +2,7 @@
 
 The installer is a standalone executable with an English interface and Nord colors. It does not need Node.js, Go, Homebrew, Hammerspoon, or an Apple developer certificate.
 
-[Download version 1.3.0](https://github.com/Ssisakhti/Claude-Desktop-Tweaks/releases/tag/v1.3.0), or use the command below to get the current release.
+[Download version 1.3.1](https://github.com/Ssisakhti/Claude-Desktop-Tweaks/releases/tag/v1.3.1), or use the command below to get the current release.
 
 ## Install on macOS or Linux
 
@@ -79,7 +79,7 @@ Run the settings path printed by the script, or repeat the install command. Repe
 On macOS or Linux, download a specific release without opening settings:
 
 ```sh
-curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash -s -- --version v1.3.0 --no-launch
+curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash -s -- --version v1.3.1 --no-launch
 ```
 
 `--no-launch` installs only the settings executable. It does not apply tweaks or change Claude's startup.
@@ -87,7 +87,7 @@ curl --fail --silent --show-error --location --proto '=https' --proto-redir '=ht
 On Windows, download a specific release without opening settings:
 
 ```powershell
-& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1'))) -Version v1.3.0 -NoLaunch
+& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1'))) -Version v1.3.1 -NoLaunch
 ```
 
 `-NoLaunch` installs only the settings executable. It does not apply tweaks or change startup.

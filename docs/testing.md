@@ -71,6 +71,8 @@ Disk-error tests use temporary files and a resource limit in a child process. Th
 
 ## Windows checks
 
+Windows platform checks read the native architecture from the registry. Regression tests cover a missing .NET architecture property and reject unsupported or missing architecture values before installation.
+
 The native Windows runner checks the executable, all eight feature combinations, saved settings, file ownership and permissions, reparse-point rejection, environment value/type restoration, and refusal to overwrite concurrent changes. PowerShell bootstrap tests cover checksums, repeated installation, unsafe versions, and preservation of existing executables.
 
 The official x64 MSIX package version is 5.11492.5.0. Its archive and startup hook are inspected read-only. This does not verify ordinary Start Menu activation, account sign-in, chat rendering, or artifact behavior. Claude Setup download and permission prompts also require a live Windows check.

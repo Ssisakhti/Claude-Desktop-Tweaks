@@ -68,7 +68,10 @@ func TestWindowsRejectsWritableInstallationHome(t *testing.T) {
 		if e := configureSystemCommand(cmd); e != nil {
 			return "", e
 		}
-		out, e := cmd.CombinedOutput()
+		out, e := cmd.Output()
+		if failure, ok := e.(*exec.ExitError); ok {
+			out = append(out, failure.Stderr...)
+		}
 		return string(out), e
 	}
 	if out, e := system.powershell("try {" + script + "} catch {Write-Output $_.Exception.Message;exit 1}"); e != nil {
@@ -117,7 +120,10 @@ func TestWindowsDiscoveryWithoutRuntimeArchitecture(t *testing.T) {
 		if e := configureSystemCommand(cmd); e != nil {
 			return "", e
 		}
-		out, e := cmd.CombinedOutput()
+		out, e := cmd.Output()
+		if failure, ok := e.(*exec.ExitError); ok {
+			out = append(out, failure.Stderr...)
+		}
 		return string(out), e
 	}
 	prefix := `$legacy=Add-Type -PassThru -TypeDefinition 'namespace CdtFixture { public static class LegacyRuntimeInformation { public static object OSArchitecture { get { return null; } } } }';$aliases=[psobject].Assembly.GetType('System.Management.Automation.TypeAccelerators');$aliases::Add('Runtime.InteropServices.RuntimeInformation',$legacy);`

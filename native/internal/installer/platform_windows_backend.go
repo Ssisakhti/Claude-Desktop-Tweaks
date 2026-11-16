@@ -58,7 +58,9 @@ if ($null -eq $package) {
   if ((Test-Path -LiteralPath (Join-Path $directory 'Update.exe')) -or (Test-Path -LiteralPath (Join-Path $directory 'claude.exe'))) {throw 'An unsupported Claude installation was preserved. Setup requires the official x64 MSIX from Anthropic.'}
  }
 }
-@{environmentValue=$environmentValue;environmentKind=$environmentKind;build=[int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuildNumber;architecture=[Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString();localAppData=[Environment]::GetFolderPath('LocalApplicationData');roamingAppData=[Environment]::GetFolderPath('ApplicationData');running=@(Get-Process -Name Claude -ErrorAction SilentlyContinue).Count -gt 0;package=$package} | ConvertTo-Json -Compress -Depth 4
+$machineArchitecture=[string](Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment').PROCESSOR_ARCHITECTURE
+$architecture=if ($machineArchitecture -eq 'AMD64') {'X64'} else {$machineArchitecture}
+@{environmentValue=$environmentValue;environmentKind=$environmentKind;build=[int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuildNumber;architecture=$architecture;localAppData=[Environment]::GetFolderPath('LocalApplicationData');roamingAppData=[Environment]::GetFolderPath('ApplicationData');running=@(Get-Process -Name Claude -ErrorAction SilentlyContinue).Count -gt 0;package=$package} | ConvertTo-Json -Compress -Depth 4
 `
 
 func powerShellLiteral(value string) string { return "'" + strings.ReplaceAll(value, "'", "''") + "'" }
