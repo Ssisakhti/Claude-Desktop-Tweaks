@@ -15,6 +15,18 @@ The tweaks run in memory inside the official app. Claude's files, signature, ASA
 - Removed fonts and styles are restored within the same document.
 - Nord colors apply in dark mode.
 
+## Standalone terminal installer
+
+The new English Bubble Tea interface provides independent switches for the Estedad font, Nord theme, and automatic RTL. Its standalone macOS executable needs no Node.js or Go. It checks prerequisites, requests approval before downloading missing Claude, and preserves installation backups.
+
+Install with one command:
+
+```sh
+curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash
+```
+
+See the [terminal installer guide](docs/terminal-installer.md) for controls, prerequisite approval, settings changes, and recovery. The existing Node-based method below remains available.
+
 ## Automatic installation
 
 The extension applies fonts, text direction, and colors automatically in chat, document artifacts, and comments. It needs no Hammerspoon watcher or idle input period. Local acceptance passed on Claude Desktop 5.11492.5, including an ordinary app launch and nested document reloads.

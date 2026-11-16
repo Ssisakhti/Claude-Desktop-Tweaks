@@ -18,9 +18,10 @@ function deferred() {
  let resolve; const promise = new Promise(done => { resolve = done; });
  return { promise, resolve };
 }
-function fixture({ gate = null, failWeight = null, directionRegression = false, shellDark = false, historyCount = 0 } = {}) {
+function fixture({ gate = null, failWeight = null, directionRegression = false, shellDark = false, historyCount = 0, styleRegression = false } = {}) {
  const { document } = parseHTML(`<!doctype html><html class="${shellDark ? '' : 'dark'}"><head></head><body${shellDark ? ' class="darkTheme"' : ''}>
    <aside${directionRegression ? ' dir="rtl"' : ''}><button id="project" data-native-font='"Sidebar Native", sans-serif'>پروژهٔ فارسی</button></aside>
+   ${styleRegression ? '<nav><button id="title-row"><span class="truncate" id="mixed-title">Agent برنامه ۲ Postgres</span></button></nav><div role="tooltip"><div id="tooltip-title">Agent برنامه ۲ Postgres</div><div id="tooltip-time">13h ago</div></div><div data-testid="assistant-message"><pre id="prose-pre"><code id="prose-code">## عنوان فارسی\nاین متن فارسی برای بررسی نمایش متن است.</code></pre></div>' : ''}
    <main>${Array.from({length:historyCount},(_,i)=>`<div data-testid="assistant-message"><p id="history-${i}">این پیام قدیمی شمارهٔ ${i} است.</p></div>`).join('')}<div data-testid="assistant-message">
      <h1 id="heading" data-native-font='"Native Heading", serif'>API عنوان فارسی برای بررسی</h1>
      <p id="paragraph" data-native-font='"Native Body", sans-serif'>API باید این متن فارسی را درست نمایش دهد.</p>
@@ -101,7 +102,7 @@ function fixture({ gate = null, failWeight = null, directionRegression = false, 
 
 test('Snapshots and standalone toString functions match the module revision',async()=>{
  const f=fixture();
- assert.equal(CONTROLLER_REVISION,5);
+ assert.equal(CONTROLLER_REVISION,7);
  assert.equal(installController.revision,CONTROLLER_REVISION);
  assert.equal(f.apply.revision,CONTROLLER_REVISION);
  const serialized=vm.runInContext('('+f.apply.toString()+')',f.context);
@@ -460,4 +461,48 @@ test('Disposal removes owned fonts, CSS, and listeners and permits reinstallatio
  assert.equal(f.document.adoptedStyleSheets.length,3);
  assert.equal(f.state.added.length,10);
  assert.equal(f.getComputedStyle(f.document.getElementById('paragraph')).direction,'rtl');
+});
+
+
+test('Prose fence and UI labels receive isolated direction while actual code keeps its font',async()=>{
+ const f=fixture({styleRegression:true});
+ await f.apply({kind:'chat'},fonts,f.scope,f.bidi,f.nord);
+ for(const id of ['mixed-title','tooltip-title','prose-pre'])assert.equal(f.getComputedStyle(f.document.getElementById(id)).direction,'rtl',id);
+ assert.match(f.getComputedStyle(f.document.getElementById('prose-code')).fontFamily,/Claude Persian Estedad/);
+ assert.equal(f.getComputedStyle(f.document.getElementById('title-row')).direction,'ltr');
+ assert.equal(f.getComputedStyle(f.document.getElementById('tooltip-time')).direction,'ltr');
+ assert.equal(f.getComputedStyle(f.document.getElementById('code')).fontFamily,'"Native Mono", monospace');
+ assert.ok(f.state.sheets.some(s=>s.css.includes('unicode-bidi:plaintext!important')));
+ assert.equal(f.document.toString(),f.baseline);
+});
+
+test('A reused navigation title drops its Persian direction when renamed in English',async()=>{
+ const f=fixture({styleRegression:true});
+ await f.apply({kind:'chat'},fonts,f.scope,f.bidi,f.nord);
+ const title=f.document.getElementById('mixed-title');
+ assert.equal(f.getComputedStyle(title).direction,'rtl');
+ title.firstChild.nodeValue='English renamed title';
+ f.state.observers[0].callback([{type:'characterData',target:title.firstChild}]);
+ const timer=f.state.timers.find(timer=>timer.delay===180&&!timer.cleared);
+ assert.ok(timer,'previously targeted UI text schedules a rescan');
+ timer.callback();
+ assert.equal(f.getComputedStyle(title).direction,'ltr');
+});
+
+for(let bits=0;bits<8;bits++)test(`Independent feature combination ${bits}`,async()=>{
+ const f=fixture(),features={font:Boolean(bits&1),theme:Boolean(bits&2),rtl:Boolean(bits&4)};
+ const result=await f.apply({kind:'chat',features},fonts,f.scope,f.bidi,f.nord);
+ assert.deepEqual(JSON.parse(JSON.stringify(result.features)),features);
+ assert.equal(f.state.added.length,features.font?fonts.length:0);
+ const css=f.state.sheets.map(s=>s.css).join('\n');
+ assert.equal(css.includes('font-family:"Claude Persian Estedad"'),features.font);
+ assert.equal(css.includes('direction:rtl!important'),features.rtl);
+ assert.equal(css.includes('--'),features.theme);
+ f.window[key].dispose();assert.equal(f.state.added.length,0);assert.equal(f.state.sheets.length,0);
+});
+test('Changing features disposes the previous controller before applying the new choices',async()=>{
+ const f=fixture();await f.apply({kind:'chat'},fonts,f.scope,f.bidi,f.nord);
+ const old=f.window[key];await f.apply({kind:'chat',features:{font:false,theme:false,rtl:false}},fonts,f.scope,f.bidi,f.nord);
+ assert.notEqual(f.window[key],old);assert.equal(f.state.added.length,0);
+ f.window[key].dispose();
 });

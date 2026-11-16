@@ -63,6 +63,16 @@ function collect(doc, kind) {
 }
 const ids = elements => elements.map(element => element.id).filter(Boolean);
 
+test('Persian prose in unlabelled and Markdown code blocks is scoped without changing real code',()=>{
+ const doc=parseHTML('<html><body><div data-testid="assistant-message"><pre id="plain"><code id="prose">## عنوان فارسی\nاین یک متن فارسی برای انتقال به گفتگوی بعدی است.</code></pre><pre id="markdown"><code class="language-markdown">این متن فارسی است.</code></pre><pre id="program"><code class="language-python"># این توضیح فارسی است\nprint(1)</code></pre><pre id="unknown"><code class="language-rust">// این کد فارسی است</code></pre><pre id="syntax"><code><span class="token comment">این توضیح فارسی است</span></code></pre><pre id="english"><code>const a = 1;</code></pre><p><code id="inline">متغیر</code></p></div></body></html>').document;
+ const before=doc.documentElement.outerHTML;
+ const targets=collect(doc,'chat');
+ for(const id of ['plain','markdown'])assert.ok(ids(targets.blocks).includes(id),id);
+ assert.ok(ids(targets.fonts).includes('prose'));
+ for(const id of ['program','unknown','syntax','english','inline'])assert.ok(!ids(targets.blocks).includes(id),id);
+ assert.equal(doc.documentElement.outerHTML,before);
+});
+
 // Accept DOM candidates only within a verified content surface.
 test('Message content gets direction while Persian UI labels receive fonts only', () => {
   const doc = fixture();
@@ -351,4 +361,39 @@ test('Cover active question cards with bdi and regular buttons while preserving 
  for(const id of ['banner','title-row','option','minimize','icon','outside','outside-bdi'])assert.ok(!ids(targets.blocks).includes(id),id);
  assert.equal(doc.documentElement.outerHTML,before);
  }
+});
+
+test('Mixed Persian tooltip and navigation title direction does not target control layouts',()=>{
+ const doc=parseHTML('<html><body><nav><button id="row" style="display:flex"><span class="truncate" id="title">Agent برنامه ۲ Postgres</span><svg></svg></button><span class="truncate" id="en">English title</span></nav><div role="tooltip" id="tip"><div id="tip-title">Agent برنامه ۲ Postgres</div><div id="time">13h ago</div></div><div role="tooltip" style="display:flex" id="flex"><span id="flex-title">عنوان فارسی</span><button id="action">Copy</button></div></body></html>').document;
+ const before=doc.documentElement.outerHTML;
+ const targets=collect(doc,'chat');
+ for(const id of ['title','tip-title','flex-title'])assert.ok(ids(targets.blocks).includes(id),id);
+ for(const id of ['row','tip','flex','time','en','action'])assert.ok(!ids(targets.blocks).includes(id),id);
+ assert.equal(doc.documentElement.outerHTML,before);
+});
+
+
+test('Unlabelled source with Persian strings keeps source direction and font',()=>{
+ for(const text of ['echo "این یک پیام فارسی است"','select "این یک عنوان فارسی است";','پیام = "این یک مقدار فارسی است"','export VALUE="این یک مقدار فارسی است"']){
+  const doc=parseHTML('<html><body><div data-testid="assistant-message"><pre id="source"><code></code></pre></div></body></html>').document;
+  doc.querySelector('code').textContent=text;
+  const targets=collect(doc,'chat');
+  assert.ok(!ids(targets.blocks).includes('source'),text);
+  assert.ok(!targets.fonts.includes(doc.querySelector('code')),text);
+ }
+});
+
+test('Tooltip controls are not mistaken for isolated labels',()=>{
+ const doc=parseHTML('<html><body><div role="tooltip"><div role="button" id="action">Agent برنامه فارسی</div><div id="wrapper">متن فارسی <select><option>گزینه</option></select></div><button><span id="label">عنوان فارسی</span></button></div></body></html>').document;
+ const targets=collect(doc,'chat');
+ assert.ok(!ids(targets.blocks).includes('action'));
+ assert.ok(!ids(targets.blocks).includes('wrapper'));
+ assert.ok(ids(targets.blocks).includes('label'));
+});
+
+test('Current faded navigation labels get one direction without moving row controls',()=>{
+ const doc=parseHTML('<html><body><div role="button" id="row" style="display:flex"><span class="dframe-fade-label" id="label"><span><span id="text">Agent برنامه ۲ Postgres</span></span></span><button id="menu">More</button></div><span class="dframe-fade-label" id="english"><span>English title</span></span></body></html>').document;
+ const targets=collect(doc,'chat');
+ assert.ok(ids(targets.blocks).includes('label'));
+ for(const id of ['row','text','menu','english'])assert.ok(!ids(targets.blocks).includes(id),id);
 });

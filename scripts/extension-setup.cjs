@@ -33,13 +33,13 @@ function checkParents(home,file,create=false){
   if(s&&(!s.isDirectory()||s.isSymbolicLink()||s.uid!==process.getuid()||(s.mode&0o022)!==0))throw Error('Installation directory is invalid or symbolic.');
  }
 }
-function extensionFiles(root){
- const {manifest,source}=buildExtension();
+function extensionFiles(root,features){
+ const {manifest,source}=buildExtension({features});
  const files={'manifest.json':Buffer.from(JSON.stringify(manifest,null,2)+'\n'),'content.js':Buffer.from(source)};
  for(const [name,source]of [['LICENSE','LICENSE'],['Estedad-OFL.txt','assets/estedad/OFL.txt'],['Nord-LICENSE','assets/nord/LICENSE'],['NOTICE.md','NOTICE.md']])files[name]=fs.readFileSync(path.join(root,source));
  return files;
 }
-function installExtension({home=os.homedir(),root=path.resolve(__dirname,'..'),platform=process.platform,run=(cmd,args)=>spawnSync(cmd,args,{encoding:'utf8',timeout:10000}),dryRun=false}={}){
+function installExtension({home=os.homedir(),root=path.resolve(__dirname,'..'),platform=process.platform,run=(cmd,args)=>spawnSync(cmd,args,{encoding:'utf8',timeout:10000}),dryRun=false,features}={}){
  if(platform!=='darwin')throw Error('Automatic extension installation requires macOS.');
  if(!path.isAbsolute(home)||!path.isAbsolute(root))throw Error('Absolute installation paths are required.');
  const target=path.join(home,'Library/Application Support/Claude/extensions',ID);
@@ -59,7 +59,7 @@ function installExtension({home=os.homedir(),root=path.resolve(__dirname,'..'),p
  const updatedConfig=originalConfig&&Buffer.from(updateConfig(originalConfig.toString('utf8'),null));
  const migrate=originalConfig&&!originalConfig.equals(updatedConfig);
  if(migrate)closed('Hammerspoon');
- const files=extensionFiles(root),oldReceipt=read(receipt);
+ const files=extensionFiles(root,features),oldReceipt=read(receipt);
  const previous=oldReceipt?JSON.parse(oldReceipt):null;
  if(previous&&previous.previousReactProfile!==null&&typeof previous.previousReactProfile!=='string')throw Error('Invalid extension rollback record.');
  const installed=stat(target);
@@ -120,7 +120,7 @@ function installExtension({home=os.homedir(),root=path.resolve(__dirname,'..'),p
    fs.writeFileSync(hammerspoonBackup,originalConfig,{flag:'wx',mode:0o600});
    write(config,updatedConfig,originalConfig);
   }
-  const record={...previous,installerVersion:1,extensionSha256:sha(files['content.js']),agentLabel:LABEL,agentPath:agent,previousReactProfile:previous?previous.previousReactProfile:beforeEnv,hammerspoonBackup};
+  const record={...previous,installerVersion:1,features:features??{font:true,theme:true,rtl:true},extensionSha256:sha(files['content.js']),agentLabel:LABEL,agentPath:agent,previousReactProfile:previous?previous.previousReactProfile:beforeEnv,hammerspoonBackup};
   if(previous?.extensionSha256!==record.extensionSha256){record.coldStartAfterPermanentSetupVerified=false;delete record.normalLaunchAcceptance;}
   const data=Buffer.from(JSON.stringify(record,null,2)+'\n');
   if(oldReceipt&&!oldReceipt.equals(data))fs.writeFileSync(path.join(backupDir(),'extension-startup.json'),oldReceipt,{flag:'wx',mode:0o600});

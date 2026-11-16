@@ -1,6 +1,21 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-11-16
+
+- Add a standalone English Bubble Tea 2 installer with a responsive Nord dashboard, independent font/theme/RTL switches, explicit review, and saved preferences.
+- Port transactional extension installation to Go; include closed-app guards, startup ownership checks, locks, backups, rollback, and legacy migration.
+- Download missing Claude only after explicit consent and verify its vendor signature before installation.
+- Add a SHA-256-verified release bootstrap and Apple silicon/Intel build workflows. End-user binaries require no Node.js, Go, or DMG interaction.
+
+- Keep Nord interaction fills translucent so card hover layers preserve text and table separators.
+- Add Nord colors for CDS row separators and tooltips.
+- Preserve translucent neutral, card, control, and field layers, including the stacked-card hover fallback.
+- Preserve native transparent inputs inside compound search fields.
+- Limit the base page background to the document root so accent coachmarks keep their contrasting text.
+- Distinguish unaccepted prompt suggestions with a readable Nord blue foreground while preserving accepted editor text.
+- Draw an inset composer focus outline for mouse and keyboard focus without changing control geometry.
+- Apply Estedad and paragraph direction to Persian prose in plain or Markdown code fences; preserve declared programming languages and detected source syntax.
+- Isolate Persian tooltip and truncated and faded navigation title text without changing control layout or document content.
 
 - Add `--install-extension` and `--extension-dry-run` with a one-command GitHub package install.
 - Automate extension building, login-agent registration, environment setup, and backed-up Hammerspoon migration without Python.

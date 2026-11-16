@@ -2,3 +2,6 @@ node_modules/
 .DS_Store
 *.tgz
 coverage/
+.build/
+native/internal/installer/payload/
+dist/
