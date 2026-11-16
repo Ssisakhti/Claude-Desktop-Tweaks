@@ -37,6 +37,8 @@ jobs:
         run: |
           ./dist/claude-tweaks_windows_amd64.exe --version
           ./dist/claude-tweaks_windows_amd64.exe --help
+          $status = (& ./dist/claude-tweaks_windows_amd64.exe --check) | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $status.platform -ne 'windows') {throw 'Windows read-only discovery failed.'}
       - name: Smoke-test native Linux executable
         if: runner.os == 'Linux'
         run: |
