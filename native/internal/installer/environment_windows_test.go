@@ -3,6 +3,8 @@ package installer
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 )
 
@@ -49,5 +51,48 @@ func TestWindowsUserEnvironmentPreservesConcurrentChange(t *testing.T) {
 	}
 	if _, e = i.powershell(windowsEnvironmentScript(name, &foreign, "String", nil, "", false)); e != nil {
 		t.Fatal("foreign value was not preserved")
+	}
+}
+
+func TestWindowsRejectsWritableInstallationHome(t *testing.T) {
+	i := windowsFixture(t)
+	script := `$ErrorActionPreference='Stop';$path=` + powerShellLiteral(i.Home) + `;$acl=Get-Acl -LiteralPath $path;$rule=[Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-5-32-545'),'Modify','ContainerInherit,ObjectInherit','None','Allow');$acl.AddAccessRule($rule);Set-Acl -LiteralPath $path -AclObject $acl`
+	system, e := New()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = system.powershell(script); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = i.Check(); e == nil {
+		t.Fatal("a home writable by another account was accepted")
+	}
+}
+func TestWindowsRejectsJunctionParent(t *testing.T) {
+	i := windowsFixture(t)
+	if _, e := i.Check(); e != nil {
+		t.Fatal(e)
+	}
+	parent := filepath.Join(i.windows.LocalAppData, "Claude-Data")
+	if e := os.RemoveAll(parent); e != nil {
+		t.Fatal(e)
+	}
+	outside := t.TempDir()
+	command := exec.Command("cmd.exe", "/c", "mklink", "/J", parent, outside)
+	if out, e := command.CombinedOutput(); e != nil {
+		t.Fatalf("junction fixture: %v %s", e, out)
+	}
+	t.Cleanup(func() { _ = os.Remove(parent) })
+	f, e := i.files()
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer f.root.Close()
+	if e = f.parents(filepath.Join(parent, "new directory"), true); e == nil {
+		t.Fatal("junction installation parent accepted")
+	}
+	entries, e := os.ReadDir(outside)
+	if e != nil || len(entries) != 0 {
+		t.Fatal("external directory changed")
 	}
 }

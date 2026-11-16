@@ -30,6 +30,14 @@ env REACT_PROFILE=1 claude-desktop
 
 The extension uses Claude's standard user profile. Custom `CLAUDE_USER_DATA_DIR` profiles are not supported.
 
+## Startup on Windows
+
+Setup records the current user's `REACT_PROFILE` value and registry type, sets it to `1`, and sends Windows an environment-change notification. Open Claude normally. No shortcut or vendor file is replaced. Other newly opened programs can inherit this user environment value too.
+
+The profile is `%LOCALAPPDATA%\Claude-Data\claude_pzs8sxrjxfjjc\`. Custom profiles and other package families are not supported. Live MSIX startup and graphical behavior are not yet verified, so Windows support remains experimental.
+
+See [removal instructions](installation.md#remove-on-windows) before changing or deleting the extension.
+
 ## Frames and content
 
 The manifest loads content scripts in supported chat and artifact frames, including nested document frames. The runtime checks each frame's origin and rejects unsupported pages. Authentication and API pages are excluded.

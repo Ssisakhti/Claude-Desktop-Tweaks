@@ -30,7 +30,9 @@ type windowsSystem struct {
 const windowsDiscovery = `# CDT_DISCOVERY
 $ErrorActionPreference='Stop'
 [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
-$packages=@(Get-AppxPackage -Name Claude | Where-Object {$_.PackageFamilyName -eq 'Claude_pzs8sxrjxfjjc' -and $_.Architecture.ToString() -eq 'X64'})
+$claudePackages=@(Get-AppxPackage | Where-Object {$_.Name -in @('Claude','AnthropicPBC.Claude')})
+if (@($claudePackages | Where-Object {$_.PackageFamilyName -ne 'Claude_pzs8sxrjxfjjc'}).Count -gt 0) {throw 'An unsupported Claude package was preserved. Setup requires the official x64 MSIX from Anthropic.'}
+$packages=@($claudePackages | Where-Object {$_.PackageFamilyName -eq 'Claude_pzs8sxrjxfjjc' -and $_.Architecture.ToString() -eq 'X64'})
 if ($packages.Count -gt 1) {throw 'More than one Claude package is registered. Resolve the duplicate installation first.'}
 $environment=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment')
 $environmentValue=$null
@@ -83,7 +85,7 @@ func (i *Installer) discoverWindows() error {
 	if system.Package != nil && system.Package.Family != "Claude_pzs8sxrjxfjjc" {
 		return errors.New("this Claude package is not supported")
 	}
-	for _, p := range []string{system.LocalAppData, system.RoamingAppData} {
+	for _, p := range []string{system.LocalAppData} {
 		rel, e := filepath.Rel(i.Home, p)
 		if !filepath.IsAbs(p) || e != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 			return errors.New("Windows application-data directories must be inside your user profile")

@@ -10,10 +10,18 @@ Turn each option on or off independently. Run the installer again whenever you w
 
 ## Install
 
-Save your work and quit Claude, then run:
+Save your work and quit Claude.
+
+On macOS or Linux:
 
 ```sh
 curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash
+```
+
+On Windows 11 x64, run in PowerShell:
+
+```powershell
+& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1')))
 ```
 
 The English terminal interface checks your setup, shows your choices, and asks you to review them before applying. If Claude is missing, it asks before installing it. Open Claude normally when setup finishes.
@@ -26,9 +34,9 @@ The English terminal interface checks your setup, shows your choices, and asks y
 | --- | --- | --- |
 | macOS | Apple silicon, Intel | Available; live app checks cover Apple silicon |
 | Ubuntu 22.04+ and Debian 12+ | x64, ARM64 | Experimental; live Linux chat and artifact checks are pending |
-| Windows | — | Not supported |
+| Windows 11 | x64 | Experimental; live Claude startup and display checks are pending |
 
-Linux support requires the official Claude Desktop package. AppImage and Flatpak are not supported.
+Linux support requires the official Claude Desktop package. Windows support requires the official x64 MSIX package from Anthropic and its standard local profile. AppImage and Flatpak are not supported.
 
 ## Change settings
 

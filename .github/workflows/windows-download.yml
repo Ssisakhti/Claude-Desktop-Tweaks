@@ -1,0 +1,25 @@
+name: Windows public download check
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published release to verify
+        required: true
+        default: v1.3.0
+permissions:
+  contents: read
+jobs:
+  download:
+    runs-on: windows-2025
+    steps:
+      - name: Download and run the published settings executable
+        shell: powershell
+        env:
+          CDT_RELEASE: ${{ inputs.version }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1'
+          & ([scriptblock]::Create($script)) -Version $env:CDT_RELEASE -NoLaunch
+          $target=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) "Claude Desktop Tweaks/releases/$env:CDT_RELEASE/x64/claude-tweaks.exe"
+          & $target --version
+          if ($LASTEXITCODE -ne 0) {throw 'Published executable did not run.'}

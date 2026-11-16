@@ -12,7 +12,8 @@ import (
 	"unicode/utf16"
 )
 
-func windowsFixture(t *testing.T) *Installer {
+func windowsFixture(t *testing.T) *Installer { i, _ := windowsFixtureSystem(t); return i }
+func windowsFixtureSystem(t *testing.T) (*Installer, *windowsSystem) {
 	t.Helper()
 	home := t.TempDir()
 	root := t.TempDir()
@@ -27,7 +28,7 @@ func windowsFixture(t *testing.T) *Installer {
 	binary.LittleEndian.PutUint32(h[12:], uint32(len(j)))
 	os.WriteFile(filepath.Join(root, "app/resources/app.asar"), append(append(h, j...), []byte(windowsTestHook)...), 0600)
 	d := windowsSystem{Build: 26100, Architecture: "X64", LocalAppData: filepath.Join(home, "AppData/Local"), RoamingAppData: filepath.Join(home, "AppData/Roaming"), Package: &windowsPackage{Family: "Claude_pzs8sxrjxfjjc", Root: root, Version: "5.11492.5.0"}}
-	return &Installer{Home: home, Platform: "windows", NotifyEnvironment: func() error { return nil }, Run: func(c string, a ...string) (string, error) {
+	i := &Installer{Home: home, Platform: "windows", NotifyEnvironment: func() error { return nil }, Run: func(c string, a ...string) (string, error) {
 		if c != "powershell.exe" {
 			return "", errors.New("unexpected command")
 		}
@@ -49,6 +50,7 @@ func windowsFixture(t *testing.T) *Installer {
 		}
 		return "", errors.New("unexpected PowerShell action")
 	}}
+	return i, &d
 }
 
 const windowsTestHook = `REACT_PROFILE loadReactDevTools fmkadmapgofadopljbjfkapdkoienihi loadExtension userData extensions`
@@ -130,5 +132,48 @@ func TestWindowsNotificationFailureRollsBackInstallation(t *testing.T) {
 	}
 	if _, e := os.Stat(i.receiptPath()); !os.IsNotExist(e) {
 		t.Fatal("success receipt written after notification failure")
+	}
+}
+
+func TestWindowsPreservesOriginalEnvironmentInReceipt(t *testing.T) {
+	i, d := windowsFixtureSystem(t)
+	original := "%USERPROFILE%\\custom"
+	d.EnvironmentValue = &original
+	d.EnvironmentKind = "ExpandString"
+	if _, e := i.Install(DefaultFeatures()); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := i.Install(Features{RTL: true}); e != nil {
+		t.Fatal(e)
+	}
+	r, e := i.ReadReceipt()
+	if e != nil || r.PreviousReactProfile == nil || *r.PreviousReactProfile != original || r.PreviousReactProfileKind != "ExpandString" {
+		t.Fatalf("original environment lost: %+v %v", r, e)
+	}
+}
+func TestWindowsUnsupportedAndRunningStatesDoNotInstall(t *testing.T) {
+	for _, name := range []string{"running", "architecture", "build", "package", "profile", "foreign extension"} {
+		t.Run(name, func(t *testing.T) {
+			i, d := windowsFixtureSystem(t)
+			switch name {
+			case "running":
+				d.Running = true
+			case "architecture":
+				d.Architecture = "Arm64"
+			case "build":
+				d.Build = 19045
+			case "package":
+				d.Package.Family = "Unknown"
+			case "profile":
+				os.RemoveAll(filepath.Join(d.LocalAppData, "Claude-Data"))
+			case "foreign extension":
+				i.windows = *d
+				os.MkdirAll(i.target(), 0700)
+				os.WriteFile(filepath.Join(i.target(), "content.js"), []byte("foreign"), 0600)
+			}
+			if _, e := i.Install(DefaultFeatures()); e == nil {
+				t.Fatal("unsupported state accepted")
+			}
+		})
 	}
 }

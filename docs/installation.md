@@ -2,12 +2,18 @@
 
 ## Install
 
-Use macOS or the official Claude Desktop package on Ubuntu 22.04+ or Debian 12+. Linux support is experimental. See the [current test coverage](testing.md) before relying on it.
+Use macOS, the official Linux package on Ubuntu 22.04+ or Debian 12+, or the official x64 MSIX package on Windows 11. Linux and Windows support are experimental. See the [current test coverage](testing.md) before relying on it.
 
-Save your work and quit Claude. Open a terminal and run:
+Save your work and quit Claude. On macOS or Linux, open a terminal and run:
 
 ```sh
 curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash
+```
+
+On Windows 11 x64, open PowerShell and run:
+
+```powershell
+& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1')))
 ```
 
 1. Review the system check.
@@ -19,6 +25,8 @@ curl --fail --silent --show-error --location --proto '=https' --proto-redir '=ht
 Hammerspoon, Node.js, and Go are not needed. The installer never quits Claude for you.
 
 On Linux, open Claude from your applications menu or dock. A direct terminal launch needs `env REACT_PROFILE=1 claude-desktop` to load the extension.
+
+On Windows, open Claude normally after setup. The installer changes only the current user's `REACT_PROFILE` environment entry and notifies the desktop. Existing shortcuts stay unchanged. The entry can also be inherited by other newly opened programs. Keep the receipt so you can restore its exact value and type when removing the tweaks.
 
 ## Update or change settings
 
@@ -37,6 +45,8 @@ Quit Claude before applying, then reopen it. Selecting all options off disables 
 On Linux, `XDG_CONFIG_HOME` and `XDG_DATA_HOME` override the default config and data locations. They must point inside your home directory. Symbolic installation paths are rejected.
 
 The receipt is named `extension-startup.json`. Keep it and the reported backups until you are sure you no longer need them.
+
+On Windows, the settings executable and receipt are under `%LOCALAPPDATA%\Claude Desktop Tweaks\`. The extension is under `%LOCALAPPDATA%\Claude-Data\claude_pzs8sxrjxfjjc\extensions\fmkadmapgofadopljbjfkapdkoienihi\`. Setup requires that standard profile to exist: open Claude once, quit it, and return to setup if prompted. Redirected application-data locations outside your user profile and custom Claude profiles are not supported.
 
 ## Remove on macOS
 
@@ -69,6 +79,17 @@ If the saved value is `1`, restoring it keeps the loading hook active. Keep the 
 6. Open Claude from the applications menu and check the result.
 
 Extension backups are beside the extension, under `.claude-desktop-tweaks-backups/`. Keep any files you have edited instead of deleting them. Removing tweaks does not uninstall Claude or its apt repository.
+
+## Remove on Windows
+
+1. Save your work and quit Claude.
+2. Keep `extension-startup.json` and the reported backups.
+3. Restore `REACT_PROFILE` in the current user's environment from `previousReactProfile` and `previousReactProfileKind` in the receipt. A `null` value means the entry should be absent. Preserve the raw value and its registry type (`String` or `ExpandString`). The user environment is stored in `HKEY_CURRENT_USER\Environment`.
+4. Sign out and back in so new applications receive the restored environment.
+5. Once future launches no longer use `REACT_PROFILE=1`, move the owned extension to a backup folder or restore its saved replacement. If the saved value is `1`, keep the extension until you decide how that profiling launch should work.
+6. Open Claude normally and check the result.
+
+No shortcut changes need to be undone. Do not remove another tool's extension or a user-modified file.
 
 ## If setup stops
 

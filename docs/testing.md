@@ -15,7 +15,7 @@ Automated tests and live app checks answer different questions. Passing a test s
 | Linux compatibility | Read-only inspection of the official Claude 5.11492.5 amd64 package and its startup hook |
 | Suggestion preview | Controller tests and synthetic browser checks for Persian/English direction, text-slot sizing, and unchanged controls |
 
-Linux graphical chat/artifact checks and the PolicyKit permission dialog are **not verified live**. Linux support remains experimental. Live suggestion-preview acceptance, Intel Mac display behavior, macOS login-time startup, native Quick Entry, and every artifact type are also outside the verified coverage.
+Linux graphical chat/artifact checks, the PolicyKit permission dialog, and Windows MSIX startup/display checks are **not verified live**. Linux and Windows support remain experimental. Live suggestion-preview acceptance, Intel Mac display behavior, macOS login-time startup, native Quick Entry, and every artifact type are also outside the verified coverage.
 
 ## Automated checks
 
@@ -59,7 +59,7 @@ Run from the project directory:
 bash scripts/build-native-release.sh dev
 ```
 
-The build produces four executables in `dist/`: macOS and Linux, each for x64 and ARM64, plus `checksums.txt`. The Go binary embeds the controller, font, and licenses. Update `assets/terminal/LICENSES.txt` when compiled dependencies change.
+The build produces five executables in `dist/`: macOS and Linux, each for x64 and ARM64, and Windows x64, plus `checksums.txt`. The Go binary embeds the controller, font, and licenses. Update `assets/terminal/LICENSES.txt` when compiled dependencies change.
 
 ## Linux test inputs
 
@@ -68,6 +68,12 @@ The installer tests use temporary homes and simulated system commands. An option
 The verified official amd64 package has SHA-256 `b96208b207e450b740f7dbe304f6077fed80e7f3d37ddd545991c4e8201564cf`. Archive inspection does not execute Claude or establish graphical behavior.
 
 Disk-error tests use temporary files and a resource limit in a child process. They do not fill the host disk. They cover failed writes, syncs, closes, short writes, lock cleanup, immediate retry, and preservation of replaced files.
+
+## Windows checks
+
+The native Windows runner checks the executable, all eight feature combinations, saved settings, file ownership and permissions, reparse-point rejection, environment value/type restoration, and refusal to overwrite concurrent changes. PowerShell bootstrap tests cover checksums, repeated installation, unsafe versions, and preservation of existing executables.
+
+The official x64 MSIX package version is 5.11492.5.0. Its archive and startup hook are inspected read-only. This does not verify ordinary Start Menu activation, account sign-in, chat rendering, or artifact behavior. Claude Setup download and permission prompts also require a live Windows check.
 
 ## Live acceptance checklist
 

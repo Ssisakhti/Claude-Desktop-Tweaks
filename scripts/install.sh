@@ -8,7 +8,7 @@ while [ "$#" -gt 0 ]; do
  case "$1" in
   --version) [ "$#" -ge 2 ] || fail 'Missing release version.'; release=$2; shift 2;;
   --no-launch) launch=0; shift;;
-  --help|-h) printf '%s\n' 'Claude Desktop Tweaks' 'Options: --version v1.2.0  --no-launch'; exit 0;;
+  --help|-h) printf '%s\n' 'Claude Desktop Tweaks' 'Options: --version v1.3.0  --no-launch'; exit 0;;
   *) fail 'Unknown option. Use --help.';;
  esac
 done
