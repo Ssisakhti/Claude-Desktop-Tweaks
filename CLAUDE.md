@@ -2,7 +2,7 @@
 
 Use clear, concise English for repository content. Use the user's requested language in direct conversation.
 
-- Use the built-in console route by default. The user-authorized unpacked extension experiment may also deliver the same in-memory controller.
+- Use the standalone installer and automatic unpacked extension for user setup. Keep console integration code separate from the default installation.
 - Do not change Claude's files, signature, ASAR archive, or security settings.
 - Do not quit an open app automatically.
 - Preserve document text, table column order, and control layout.

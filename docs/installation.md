@@ -1,102 +1,79 @@
-# Hammerspoon installation and removal
+# Installation and removal
 
-For automatic page-load application without Hammerspoon or an idle input period, use the [extension installation guide](extension.md#install-on-macos). This page documents the existing console integration. Do not enable both methods together.
+## Install
 
-## Requirements
+Use macOS or the official Claude Desktop package on Ubuntu 22.04+ or Debian 12+. Linux support is experimental. See the [current test coverage](testing.md) before relying on it.
 
-- macOS and the official Claude Desktop app.
-- Node.js 22.12.0 or later and npm.
-- Hammerspoon with Accessibility permission.
-
-Keep Hammerspoon running while using the integration. To start it after signing in to macOS, enable **Launch Hammerspoon at login** in Hammerspoon. This tool does not grant system permissions automatically.
-
-## Preview and install
-
-Run these commands from the project directory:
+Save your work and quit Claude. Open a terminal and run:
 
 ```sh
-npm ci
-node bin/claude-desktop-tweaks.cjs --dry-run
+curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash
 ```
 
-The preview does not write an installation. To install:
+1. Review the system check.
+2. If Claude is missing, approve its installation or install it yourself first.
+3. Choose font, theme, and right-to-left separately.
+4. Review your choices and select Apply.
+5. Open Claude normally.
 
-```sh
-node bin/claude-desktop-tweaks.cjs --install
-```
+Hammerspoon, Node.js, and Go are not needed. The installer never quits Claude for you.
 
-Keep the configuration backup path printed by the installer, then choose **Reload Config** in Hammerspoon. The installer copies two Lua modules and the command bundle into a private runtime directory. The installed watcher does not depend on the source checkout remaining in place. Runtime files are retained so a configuration backup can still refer to them.
+On Linux, open Claude from your applications menu or dock. A direct terminal launch needs `env REACT_PROFILE=1 claude-desktop` to load the extension.
 
-If no Hammerspoon configuration existed, the installer reports `backup: null`; there is no earlier configuration to restore.
+## Update or change settings
 
-After reloading, bring Claude to the front and leave the keyboard and mouse idle for at least two seconds. A brief console transaction can occur during the first application.
+Run the same command again. It downloads the current release and opens your saved choices. You can also use the full settings path printed by the installer.
 
-Installation prepares the watcher; it does not prove that every app frame has been processed. The official app must be active and its interface ready. User input or developer tools already open can delay a transaction. The tool does not send messages, submit comments, or edit document content.
+Quit Claude before applying, then reopen it. Selecting all options off disables the tweaks without removing their files.
 
-The installed Hammerspoon handle is named `claudeDesktopTweaks`. Status is written to `~/.hammerspoon/claude-desktop-tweaks/status.json`. Check that its time and process match the current app. An old report or the presence of a configuration file does not prove that the watcher is running.
+## Installation files
 
-## Replace an active installation
+| Files | macOS | Linux defaults |
+| --- | --- | --- |
+| Settings, receipt, executable releases | `~/Library/Application Support/Claude Desktop Tweaks/` | `~/.local/share/Claude Desktop Tweaks/` |
+| Extension | `~/Library/Application Support/Claude/extensions/fmkadmapgofadopljbjfkapdkoienihi/` | `~/.config/Claude/extensions/fmkadmapgofadopljbjfkapdkoienihi/` |
+| Startup | `~/Library/LaunchAgents/local.claude-desktop-tweaks.environment.plist` | `~/.local/share/applications/com.anthropic.Claude.desktop` |
 
-Before replacing or reloading an active integration, stop its running handle and confirm that cleanup has finished. The startup code requires the previous handle to report `running: false` with neither `cleanupPending` nor `cleanupRequired`. If cleanup or startup fails, the new integration stops with an error; it does not switch to another execution method.
+On Linux, `XDG_CONFIG_HOME` and `XDG_DATA_HOME` override the default config and data locations. They must point inside your home directory. Symbolic installation paths are rejected.
 
-The CLI changes files only. It does not control a live Hammerspoon session. Reloading the configuration is a separate step.
+The receipt is named `extension-startup.json`. Keep it and the reported backups until you are sure you no longer need them.
 
-## Restore a configuration backup
+## Remove on macOS
 
-Use the backup path printed by the installer:
+There is no automatic uninstall command for the standalone installer. To stop the styling without removing files, turn all three options off and apply.
 
-```sh
-node bin/claude-desktop-tweaks.cjs --restore-backup=/path/to/backup
-```
+For full removal:
 
-The path above is a placeholder. Use your actual backup path, then reload the Hammerspoon configuration. Restoring the full configuration also reverts configuration edits made after that backup. Choose the backup carefully.
+1. Save your work and quit Claude.
+2. Read `extension-startup.json` and keep its backup paths.
+3. Unload the startup job:
 
-## Remove
+   ```sh
+   launchctl bootout "gui/$(id -u)/local.claude-desktop-tweaks.environment"
+   ```
 
-```sh
-node bin/claude-desktop-tweaks.cjs --remove
-```
+4. Move this project's LaunchAgent plist to a backup folder so it cannot load at login.
+5. Restore `previousReactProfile` from the receipt. If it is `null`, run `launchctl unsetenv REACT_PROFILE`. If it is a string, restore that exact value with `launchctl setenv REACT_PROFILE`.
+6. Once future launches no longer use `REACT_PROFILE=1`, move the owned extension to a backup folder or restore its saved replacement.
+7. Open Claude normally and check the result.
 
-Then choose **Reload Config** in Hammerspoon. Removing the configuration alone does not stop the running watcher or remove styles already applied in memory. Save your work, quit Claude completely, and reopen it to clear the in-memory changes. The tool does not quit the app automatically.
+If the saved value is `1`, restoring it keeps the loading hook active. Keep the extension until you decide how that profiling launch should work. Do not remove an extension belonging to another tool.
 
-## What changes
+## Remove on Linux
 
-The installer writes this integration's Hammerspoon configuration and runtime files. It does not change Claude's files, signature, ASAR archive, frame isolation, or security settings. It does not open Chrome.
+1. Save your work and quit Claude.
+2. Keep the receipt and backups.
+3. Remove only the installer-owned user desktop entry listed above. The system's Claude desktop entry is unchanged and becomes active again.
+4. Stop using terminal launches that set `REACT_PROFILE=1`.
+5. Restore a saved extension, or move this project's extension to a backup folder if there is nothing to restore.
+6. Open Claude from the applications menu and check the result.
 
-The console can appear briefly during a transaction. Completely invisible execution is not guaranteed. See [testing and limitations](testing.md) for reload detection and other boundaries.
+Extension backups are beside the extension, under `.claude-desktop-tweaks-backups/`. Keep any files you have edited instead of deleting them. Removing tweaks does not uninstall Claude or its apt repository.
 
-## Quiet navigation and recovery
+## If setup stops
 
-The default watcher reuses the controller across chat URL changes when the supported frame layout is unchanged. The in-page controller handles new messages, streaming text, and editor input. Returning to Claude does not trigger a console health scan just because 30 seconds have passed.
+Keep the error message, receipt, and backups. The installer tries to undo its own changes and preserves files it cannot identify safely.
 
-The **CDT** menu shows the current activity and the last result separately. **Checked** means a scan finished; **Applied** means a scan reported at least one application. Neither result proves coverage of every frame. Switching to Terminal normally changes the activity to **Waiting for Claude**.
+A power loss or forced termination can leave an installation lock. Confirm that no installer is running before investigating it. Do not delete locks or backups just to bypass an error.
 
-If a full reload clears the styles without an observable loading or frame-layout change, choose **Reapply in Claude in 3 seconds** from the CDT menu, return to the Claude window, and stop moving the mouse or typing. This command never brings Claude to the front automatically. A page load event or a changed accessibility identity alone cannot reliably distinguish chat navigation from a replaced document.
-
-For diagnostic compatibility, advanced callers can pass `recoveryOnActivation=true` to the Lua startup configuration. This restores load-event and activation recovery, including its possible console popups. The installer uses quiet navigation by default.
-
-Use the CDT menu or Hammerspoon Console for diagnosis. The optional `hs` Terminal command requires `require("hs.ipc")` in the running Hammerspoon session; its connection error does not by itself indicate a failed installation or missing accessibility permission.
-
-## Failure diagnostics and time budgets
-
-`lastFailure` retains the most recent failed attempt even after a retry succeeds. It contains only fixed reason/phase names, bounded durations, and safe counts. A new Claude process clears the previous process's failure evidence. `lastDriver.elapsedSeconds` and `phaseDurations` describe the current or most recent transaction; they do not contain page content or URLs.
-
-After ownership and document checks, an apply command clears output in its newly owned console before running the payload. This removes the large source echo that can otherwise hide the prompt beyond the accessibility traversal limit. The following result receipt remains available. Existing user tools are never taken over or cleared.
-
-The installer gives each frame up to 60 seconds, with a hard total scan cap of 300 seconds. The driver still checks input, focus, window identity, and clipboard ownership throughout. Advanced callers may pass a smaller `scanTimeout` in seconds, at least the frame `timeout` and at most 300. A stalled frame cannot use the full scan budget by itself.
-
-## Experimental direct dispatch
-
-The default installation does not load `claude-console-direct.lua`. That module separates asynchronous direct prompt writes, exact readback, local console focus, app-targeted execution, nonce/document receipts, and cleanup. It does not bootstrap a console. A separate experimental native adapter, `claude-console-direct-native.lua`, implements capture, source probing, owned handoff, prompt dispatch, and release. It requires an explicit trusted ownership handoff and cannot take over an existing user console.
-
-See [background bootstrap investigation](background-bootstrap.md) for the tested official menu alternative and its focus-transfer limitation. Experimental transport tests are separate from the supported default runtime.
-
-For the native experiment, create the adapter with `native.new(hs)`, call `capture(sourceWindowId, expectedURL)` before a trusted bootstrap creates tools, and obtain `probeCode(captureToken)`. The bootstrap must execute that exact source-guarded probe in the new console. `bind(captureToken, toolsWindowId)` then reads and verifies the real console receipt itself; callers cannot supply a proof table. Pass the returned opaque ownership value to the direct module. No startup hook is installed. Missing monitoring capabilities or rejected AX watcher registration refuse the handoff. An accepted asynchronous window close is conservatively reported as incomplete and monitoring is stopped; do not mistake that for verified cleanup.
-
-The stable watcher waits for the main guest content at startup instead of targeting a temporary local `main_window` shell. A nonmodal native dialog can be excluded from console candidates only after a complete bounded inspection proves it contains no web area and exactly one other candidate has the expected console title and official PID. The classification is rechecked until source ownership is proven. Modal, unknown, truncated, and additional console candidates still stop the transaction. An excluded dialog is never targeted or closed.
-
-Abort an unclaimed native experiment with `discard(token)` so its capture/ownership state is released. The native adapter's lifecycle watcher registration and event capabilities must all succeed before a handoff is usable. Stop the default watcher and verify its cleanup before any live experiment.
-
-For a child frame, `capture(sourceWindowId, expectedURL, toolsSourceURL)` can bind the child to its chat parent's tools title. Both exact, unique accessibility elements must exist in the same official window and remain unchanged. The source probe independently classifies the actual browser frame, including bounded ancestor origins for `about:srcdoc`, before creating or reusing a document identity. An existing identity with a different frame is preserved and rejected.
-
-`buildDirectPlan({namespace, nonce, kind})` in `lib/persian/direct-plan.cjs` creates a complete experimental font/controller plan using the same production modules. The current variable-font plan has 33 commands, each below the direct transport limit. It transfers font bytes as data and trusted repository functions as syntax, without `eval` or `Function`. Each command checks namespace ownership; the final command verifies the actual production controller's health. Cleanup removes only temporary helpers and font chunks, retaining a successful controller. This builder does not open tools or install a startup hook.
+See [installer details](terminal-installer.md) for download options and prerequisite approval.

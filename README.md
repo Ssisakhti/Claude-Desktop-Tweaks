@@ -1,92 +1,61 @@
 # Claude Desktop Tweaks
 
-Estedad fonts, paragraph direction, and a Nord dark theme for Claude Desktop on macOS and official Ubuntu/Debian Linux.
+Choose your font, theme, and text direction in Claude Desktop.
 
-The tweaks run in memory inside the official app. Claude's files, signature, ASAR archive, and security settings stay unchanged. The automatic extension applies them at page load without controlling the keyboard or mouse. The existing Hammerspoon console integration remains available. Neither method opens Chrome.
+- **Font:** Estedad for Persian text, with weights 100–900 in one local font file.
+- **Theme:** Nord colors for dark mode.
+- **Right-to-left:** automatic direction for Persian and mixed Persian/English text.
 
-[Installation and removal](docs/installation.md) · [Testing and limitations](docs/testing.md) · [Changelog](CHANGELOG.md)
+Turn each option on or off independently. Run the installer again whenever you want to change your choices.
 
-## Features
+## Install
 
-- One official Estedad variable WOFF2 is included locally and covers weights 100–900. No font download is needed at runtime.
-- Each paragraph gets a direction based on its text, including Persian paragraphs that start with an English word.
-- Supported chat, document, and comment frames are handled separately.
-- Text inside table cells is handled without changing column order or control layout.
-- Removed fonts and styles are restored within the same document.
-- Nord colors apply in dark mode.
-
-## Standalone terminal installer
-
-The new English Bubble Tea interface provides independent switches for the Estedad font, Nord theme, and automatic RTL. Its standalone macOS and Linux executables needs no Node.js or Go. It checks prerequisites, requests approval before downloading missing Claude, and preserves installation backups.
-
-Install with one command:
+Save your work and quit Claude, then run:
 
 ```sh
 curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash
 ```
 
-See the [terminal installer guide](docs/terminal-installer.md) for controls, prerequisite approval, settings changes, and recovery. The existing Node-based method below remains available.
+The English terminal interface checks your setup, shows your choices, and asks you to review them before applying. If Claude is missing, it asks before installing it. Open Claude normally when setup finishes.
 
-## Automatic installation on macOS
+**Hammerspoon, Node.js, and Go are not required.** You do not need an Apple developer certificate or a separate installer app.
 
-The extension applies fonts, text direction, and colors automatically in chat, document artifacts, and comments. It needs no Hammerspoon watcher or idle input period. Local acceptance passed on Claude Desktop 5.11492.5, including an ordinary app launch and nested document reloads.
+## Platforms
 
-Save work and quit Claude, then run:
+| System | Processors | Status |
+| --- | --- | --- |
+| macOS | Apple silicon, Intel | Available; live app checks cover Apple silicon |
+| Ubuntu 22.04+ and Debian 12+ | x64, ARM64 | Experimental; live Linux chat and artifact checks are pending |
+| Windows | — | Not supported |
 
-```sh
-npx --yes --cache="$(mktemp -d)" --package=https://github.com/Ssisakhti/Claude-Desktop-Tweaks/archive/refs/heads/main.tar.gz claude-desktop-tweaks --install-extension
-```
+Linux support requires the official Claude Desktop package. AppImage and Flatpak are not supported.
 
-Node.js 22.12.0 or later is required. Quit Hammerspoon too when migrating from the old integration; the installer backs up and removes its startup block. Then open Claude normally. No Python or manual startup configuration is needed.
+## Change settings
 
-Follow the [complete automatic installation guide](docs/extension.md#install-on-macos) for previews, migration, verification, updates, and rollback. The guide also covers updates and removal. The method uses an unofficial startup hook; a macOS logout/login cycle remains untested.
+Run the same command again, or use the settings path printed by the installer. Quit Claude before applying changes, then reopen it.
 
-## Hammerspoon installation
+You can enable any combination, including all options off. Turning everything off keeps the extension installed but stops it from changing fonts, colors, or text direction.
 
-You need macOS, the official Claude Desktop app, Node.js 22.12.0 or later, npm, and Hammerspoon. Give Hammerspoon Accessibility permission and keep it running while you use the tool.
+## What it changes
 
-```sh
-git clone https://github.com/Ssisakhti/Claude-Desktop-Tweaks.git
-cd Claude-Desktop-Tweaks
-npm ci
-node bin/claude-desktop-tweaks.cjs --dry-run
-node bin/claude-desktop-tweaks.cjs --install
-```
+The extension applies styles to supported chats, document artifacts, and comments. It preserves message text, code, table column order, and control layout. It loads the font locally and does not send conversation data.
 
-In Hammerspoon, choose **Reload Config**. Bring Claude to the front and leave the mouse and keyboard idle for at least two seconds. Keep the configuration backup path printed by the installer. See the [installation guide](docs/installation.md) before replacing an active installation.
+Claude's application files and security settings stay unchanged. Loading uses an unofficial startup hook, so a Claude update may affect compatibility. Native Quick Entry and every artifact type are not covered by the current checks.
 
-The installer copies the runtime to a private Hammerspoon directory. Once installed, the watcher does not depend on the source checkout remaining in place.
+## Guides
 
-## Supported behavior and limits
-
-The standalone installer supports macOS and the official Linux package on Ubuntu 22.04+ and Debian 12+ (x64 and arm64). Linux support is experimental: package compatibility and container tests pass, but graphical chat/artifact acceptance has not been run on Linux. Hammerspoon and the Node installer remain macOS-only. Hammerspoon controls Claude's interface, so the console may appear briefly. User input, an unverified context, or developer tools already open can delay or stop a transaction.
-
-The latest local cold-start check completed on the first attempt after waiting for guest content. A separate four-frame document check also completed without a retry. These local checks do not guarantee zero-retry behavior for every launch or app version. Chat navigation reuses the in-page controller when the frame layout is unchanged. Reloads without an observed loading or frame-layout change may need **Reapply in Claude in 3 seconds** from the **CDT** menu. Native Quick Entry without an HTML frame is outside the tool's scope. A second simultaneous native window for ordinary chat has not been verified. See [testing and limitations](docs/testing.md).
-
-The default runtime remains the guarded console route. An independent direct-dispatch experiment is documented in [background bootstrap investigation](docs/background-bootstrap.md); it is not enabled by installation.
-
-The [automatic extension](docs/extension.md) uses the same controller for nested artifact frames. The Hammerspoon CLI does not install it; follow the separate guide and disable the old watcher before switching.
-
-## Remove the integration
-
-```sh
-node bin/claude-desktop-tweaks.cjs --remove
-```
-
-Reload the Hammerspoon configuration afterward. Removing the configuration does not itself remove styles already applied in Claude's memory. After saving your work, quit Claude completely and reopen it to clear those styles. The tool does not quit the app for you.
+- [Installation and removal](docs/installation.md)
+- [Installer controls and prerequisites](docs/terminal-installer.md)
+- [How the extension works](docs/extension.md)
+- [Tests and known limits](docs/testing.md)
+- [Release information](CHANGELOG.md)
 
 ## Development
 
-```sh
-npm test
-npm run check:fonts
-npm audit --audit-level=low
-```
-
-Run the Lua suites as well; the commands are in the [testing guide](docs/testing.md). Automated tests and live app checks are reported separately.
+Node.js and Go are needed to build from source. See the [testing guide](docs/testing.md) for checks and build commands.
 
 ## Licenses
 
-Code license notices, the Estedad font license, and the Nord license are included in the repository. See [NOTICE.md](NOTICE.md) and [LICENSE](LICENSE).
+Code, font, theme, and dependency notices are included. See [NOTICE.md](NOTICE.md) and [LICENSE](LICENSE).
 
-This is an unofficial project. It is not affiliated with or endorsed by Anthropic.
+This is an unofficial project, not affiliated with or endorsed by Anthropic.
