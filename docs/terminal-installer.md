@@ -4,7 +4,7 @@ The installer is a standalone executable with an English interface and Nord colo
 
 [Download version 1.3.0](https://github.com/Ssisakhti/Claude-Desktop-Tweaks/releases/tag/v1.3.0), or use the command below to get the current release.
 
-## Install
+## Install on macOS or Linux
 
 ```sh
 curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash
@@ -16,7 +16,9 @@ The checksum checks download integrity. Downloads rely on HTTPS and this reposit
 
 The script needs Bash, curl, and either `sha256sum` or `shasum`. Linux supports the official Claude package on Ubuntu 22.04+ and Debian 12+, for x64 and ARM64. Linux display checks are pending, so support remains experimental. Windows ARM64, AppImage, and Flatpak are not supported.
 
-On Windows 11 x64, run in PowerShell:
+## Install on Windows 11 x64
+
+Run in PowerShell:
 
 ```powershell
 & ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1')))
@@ -62,7 +64,7 @@ It verifies the vendor signing key, adds Anthropic's signed apt repository, down
 
 Existing repository files with different contents are preserved, and installation stops. If PolicyKit or its authentication agent is unavailable, follow [Anthropic's installation instructions](https://support.claude.com/en/articles/10065433-install-claude-desktop), then run setup again.
 
-Applying the tweaks themselves does not need administrator permission on either system.
+Applying the tweaks themselves does not need administrator permission on any supported system.
 
 ## Missing Claude on Windows
 
@@ -74,7 +76,7 @@ Open Claude once after installation, quit it, and return to setup. The installer
 
 Run the settings path printed by the script, or repeat the install command. Repeating the command selects the current published release.
 
-To download a specific release without opening settings:
+On macOS or Linux, download a specific release without opening settings:
 
 ```sh
 curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash -s -- --version v1.3.0 --no-launch
@@ -82,7 +84,13 @@ curl --fail --silent --show-error --location --proto '=https' --proto-redir '=ht
 
 `--no-launch` installs only the settings executable. It does not apply tweaks or change Claude's startup.
 
-For a specific Windows release without opening settings, invoke the same PowerShell script block with `-Version v1.3.0 -NoLaunch`. This downloads only the settings executable; it does not apply tweaks or change startup.
+On Windows, download a specific release without opening settings:
+
+```powershell
+& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1'))) -Version v1.3.0 -NoLaunch
+```
+
+`-NoLaunch` installs only the settings executable. It does not apply tweaks or change startup.
 
 The executable also accepts `--check` for read-only JSON status, `--version`, `--help`, and `--licenses`.
 

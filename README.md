@@ -12,21 +12,29 @@ Turn each option on or off independently. Run the installer again whenever you w
 
 Save your work and quit Claude.
 
-On macOS or Linux:
+### macOS and Linux
+
+Run in Terminal:
 
 ```sh
 curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash
 ```
 
-On Windows 11 x64, run in PowerShell:
+### Windows 11 x64
+
+Run in PowerShell:
 
 ```powershell
 & ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1')))
 ```
 
-The English terminal interface checks your setup, shows your choices, and asks you to review them before applying. If Claude is missing, it asks before installing it. Open Claude normally when setup finishes.
+### Finish setup
 
-**Hammerspoon, Node.js, and Go are not required.** You do not need an Apple developer certificate or a separate installer app.
+Choose font, theme, and right-to-left separately, then review and apply. The interface is in English. If Claude is missing, the installer asks before installing it.
+
+On macOS and Windows, open Claude normally after setup. On Linux, use the applications menu or dock.
+
+**Hammerspoon, Node.js, and Go are not required.** No separate installer app is needed.
 
 ## Platforms
 
