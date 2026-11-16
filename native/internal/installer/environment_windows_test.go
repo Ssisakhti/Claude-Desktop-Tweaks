@@ -61,8 +61,8 @@ func TestWindowsRejectsWritableInstallationHome(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = system.powershell(script); e != nil {
-		t.Fatal(e)
+	if out, e := system.powershell("try {" + script + "} catch {Write-Output $_.Exception.Message;exit 1}"); e != nil {
+		t.Fatalf("permission fixture: %v: %s", e, out)
 	}
 	if _, e = i.Check(); e == nil {
 		t.Fatal("a home writable by another account was accepted")
