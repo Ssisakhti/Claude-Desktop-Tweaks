@@ -32,3 +32,5 @@ The current checkout preserves earlier style changes. The implementation branch 
 - Preserve formatted legacy LaunchAgents and CRLF-adjacent blank lines; regression tests failed before the compatibility corrections and passed afterward.
 - Minor deferred: a disk I/O failure during exclusive lock-file creation may leave a partial lock. Recovery preserves the lock and backups for inspection; this limitation is documented.
 - User explicitly approved publishing source and standalone release assets in the existing GitHub repository.
+
+- Publication preflight: Linux CI passed. macOS jobs were cancelled before running because macos-14 was retired on 2026-11-02; migrate all workflows to the supported macos-15 image and verify again before tagging.
