@@ -269,24 +269,89 @@ func (f *safeFS) remove(p string) error {
 	}
 	return f.root.RemoveAll(r)
 }
+
+// createdFile is the I/O boundary for an exclusively created regular file.
+// Its descriptor and failed-write cleanup belong to writeCreated.
+type createdFile interface {
+	Write([]byte) (int, error)
+	Sync() error
+	Close() error
+	Stat() (os.FileInfo, error)
+}
+
 func (f *safeFS) exclusive(p string, b []byte) error {
+	_, err := f.createExclusive(p, b)
+	return err
+}
+func (f *safeFS) createExclusive(p string, b []byte) (os.FileInfo, error) {
 	if err := f.parents(filepath.Dir(p), true); err != nil {
-		return err
+		return nil, err
 	}
-	r, _ := f.rel(p)
+	r, err := f.rel(p)
+	if err != nil {
+		return nil, err
+	}
 	file, err := f.root.OpenFile(r, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0600)
 	if err != nil {
+		return nil, err
+	}
+	return f.writeCreated(p, file, b)
+}
+func (f *safeFS) writeCreated(p string, file createdFile, b []byte) (identity os.FileInfo, retErr error) {
+	identity, retErr = file.Stat()
+	defer func() {
+		retErr = errors.Join(retErr, file.Close())
+		if retErr == nil {
+			return
+		}
+		if identity == nil {
+			retErr = errors.Join(retErr, errors.New("created file identity is unavailable for cleanup; preserve it for inspection"))
+			return
+		}
+		if err := f.removeCreated(p, identity); err != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("created file cleanup failed: %w", err))
+		}
+	}()
+	if retErr != nil {
+		identity = nil
+		return identity, retErr
+	}
+	n, err := file.Write(b)
+	if err != nil {
+		return identity, err
+	}
+	if n != len(b) {
+		return identity, io.ErrShortWrite
+	}
+	return identity, file.Sync()
+}
+
+// Remove only the captured regular file, never recursively remove a replacement.
+func (f *safeFS) removeCreated(p string, identity os.FileInfo) error {
+	if identity == nil || !identity.Mode().IsRegular() || !owned(identity) {
+		return errors.New("created file identity cannot be verified")
+	}
+	if err := f.parents(filepath.Dir(p), false); err != nil {
 		return err
 	}
-	_, err = file.Write(b)
-	if err == nil {
-		err = file.Sync()
-	}
-	closeErr := file.Close()
+	current, err := f.stat(p)
 	if err != nil {
 		return err
 	}
-	return closeErr
+	if current == nil {
+		return nil
+	}
+	if !current.Mode().IsRegular() || !owned(current) || !os.SameFile(current, identity) {
+		return errors.New("created file was replaced; the replacement was preserved")
+	}
+	r, err := f.rel(p)
+	if err != nil {
+		return err
+	}
+	if err = f.root.Remove(r); os.IsNotExist(err) {
+		return nil
+	}
+	return err
 }
 func (f *safeFS) write(p string, data, before []byte) error {
 	current, err := f.read(p)
@@ -511,14 +576,20 @@ func (i *Installer) Install(features Features) (result Result, retErr error) {
 		return result, err
 	}
 	lock := filepath.Join(state, ".extension-install.lock")
-	if err = f.exclusive(lock, []byte(token())); err != nil {
-		return result, errors.New("another installation may be running; preserve the installation lock and retry later")
+	lockInfo, err := f.createExclusive(lock, []byte(token()))
+	if err != nil {
+		if lockInfo == nil && errors.Is(err, os.ErrExist) {
+			return result, errors.New("another installation may be running; preserve the installation lock and retry later")
+		}
+		return result, fmt.Errorf("could not create installation lock: %w", err)
 	}
-	lockInfo, _ := f.stat(lock)
 	defer func() {
-		now, _ := f.stat(lock)
-		if now != nil && os.SameFile(now, lockInfo) {
-			_ = f.remove(lock)
+		if err := f.removeCreated(lock, lockInfo); err != nil {
+			if retErr == nil {
+				retErr = fmt.Errorf("installation finished but lock cleanup failed: %w", err)
+			} else {
+				retErr = errors.Join(retErr, fmt.Errorf("installation lock cleanup failed: %w", err))
+			}
 		}
 	}()
 	backup := filepath.Join(state, "backups", time.Now().UTC().Format("20060102T150405.000000000")+"-"+token())

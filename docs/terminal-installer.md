@@ -4,7 +4,7 @@ The standalone macOS installer uses Bubble Tea 2 and Lip Gloss 2. Its English in
 
 ## Availability
 
-[Version 1.1.0](https://github.com/Ssisakhti/Claude-Desktop-Tweaks/releases/tag/v1.1.0) includes standalone Apple silicon and Intel executables. The release workflow creates drafts for review before later versions are published.
+[Version 1.1.1](https://github.com/Ssisakhti/Claude-Desktop-Tweaks/releases/tag/v1.1.1) includes standalone Apple silicon and Intel executables. The release workflow creates drafts for review before later versions are published.
 
 ## Install with one command
 
@@ -14,7 +14,7 @@ curl --fail --silent --show-error --location --proto '=https' --proto-redir '=ht
 
 The bootstrap detects Apple silicon or Intel, resolves one release version, downloads the executable and its SHA-256 checksum from that release, verifies the download, and opens the terminal interface. It installs into a private, versioned folder under `~/Library/Application Support/Claude Desktop Tweaks/releases/`. It preserves existing executables with different contents and does not edit your shell profile or PATH. The checksum detects corrupted or mismatched downloads; release authenticity relies on HTTPS and the repository's release access controls.
 
-The command prints the full path to reopen settings. Run that path or repeat the installation command to change your choices. `--no-launch` downloads and verifies without opening the interface. `--version v1.1.0` pins a particular published release.
+The command prints the full path to reopen settings. Run that path or repeat the installation command to change your choices. `--no-launch` downloads and verifies without opening the interface. `--version v1.1.1` pins a particular published release.
 
 ## Controls and settings
 
@@ -43,7 +43,7 @@ Quit Claude before applying extension changes. If migrating from an old Hammersp
 
 The Go installer preserves the existing extension ID, startup LaunchAgent, rollback receipt, `REACT_PROFILE` environment handling, and legacy Hammerspoon migration. It uses an exclusive installation lock and backs up replaced extension files and the previous receipt. Failures trigger rollback; concurrent unrelated changes are preserved. The UI does not access or send conversations.
 
-Backups and the receipt are under `~/Library/Application Support/Claude Desktop Tweaks/`. Follow [extension rollback instructions](extension.md#rollback-of-the-local-installation) for removal. A hard process kill, power loss, or disk I/O failure while creating a lock can leave an installation lock. Normal quit requests wait for transaction cleanup. Preserve the lock and backups, confirm no installation process is still active, and inspect the receipt and installed files before removing a stale lock or retrying. Do not delete backups to resolve an error.
+Backups and the receipt are under `~/Library/Application Support/Claude Desktop Tweaks/`. Follow [extension rollback instructions](extension.md#rollback-of-the-local-installation) for removal. Failed writes, syncs, closes, and short writes now trigger cleanup of the newly created file, including the installation lock. The installer reports the original disk error instead of claiming another installation is running. Normal quit requests wait for transaction cleanup. A hard process kill or power loss can still leave a lock. If the filesystem itself prevents identity checks or deletion, the installer reports the cleanup failure and preserves unverified or replaced files. Identity checking and removal are not atomic protection against a hostile process with the same user identity; installation folders are private and cooperating installers honor the exclusive lock. Preserve the lock and backups, confirm no installation process is still active, and inspect the receipt and installed files before removing a stale lock or retrying. Do not delete backups to resolve an error.
 
 `claude-tweaks --check` prints read-only system status as JSON. `--help`, `--version`, and `--licenses` are available without changing Claude.
 

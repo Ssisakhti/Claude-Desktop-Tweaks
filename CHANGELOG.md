@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1 — 2026-11-16
+
+- Remove newly created files after failed writes, syncs, closes, or short writes, including failed installation-lock acquisition.
+- Preserve existing locks and foreign file, directory, or symlink replacements. Use non-recursive cleanup after checking the captured file identity.
+- Keep original I/O errors and report cleanup failures instead of treating every failure as another active installation.
+- Add a real subprocess write-failure/retry regression plus ENOSPC, EIO, short-write, replacement, and permission-failure coverage.
+
 ## 1.1.0 — 2026-11-16
 
 - Add a standalone English Bubble Tea 2 installer with a responsive Nord dashboard, independent font/theme/RTL switches, explicit review, and saved preferences.

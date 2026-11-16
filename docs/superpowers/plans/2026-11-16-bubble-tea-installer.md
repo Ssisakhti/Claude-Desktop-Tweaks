@@ -34,3 +34,5 @@ The current checkout preserves earlier style changes. The implementation branch 
 - User explicitly approved publishing source and standalone release assets in the existing GitHub repository.
 
 - Publication preflight: Linux CI passed. macOS jobs were cancelled before running because macos-14 was retired on 2026-11-02; migrate all workflows to the supported macos-15 image and verify again before tagging.
+
+- The deferred exclusive-write lock leak is addressed in v1.1.1; see 2026-11-16-lock-cleanup.md for failure, recovery, and ownership regressions.
