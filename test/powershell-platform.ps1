@@ -1,8 +1,12 @@
 $ErrorActionPreference='Stop'
 # Model Windows PowerShell resolving a RuntimeInformation type without the property.
-Add-Type -TypeDefinition 'namespace Runtime.InteropServices { public static class RuntimeInformation { public static object OSArchitecture { get { return null; } } } }'
+$legacyType=Add-Type -PassThru -TypeDefinition 'namespace CdtFixture { public static class LegacyRuntimeInformation { public static object OSArchitecture { get { return null; } } } }'
+$aliases=[psobject].Assembly.GetType('System.Management.Automation.TypeAccelerators')
+$aliases::Add('Runtime.InteropServices.RuntimeInformation',$legacyType)
+$installerPath=Join-Path $PSScriptRoot '../scripts/install.ps1'
+& ([scriptblock]::Create(@'
 if ($null -ne [Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {throw 'The missing-property fixture was not loaded.'}
-. "$PSScriptRoot/../scripts/install.ps1"
+. $installerPath
 $script:ReachedInstall=$false
 function Get-ReleaseBytes { param([string]$Url,[int]$Limit) return ,[byte[]]@(0) }
 function Install-SettingsBinary { param($ProfileRoot,$DataHome,$Release,$Binary,$Checksums) $script:ReachedInstall=$true; return 'verified-fixture.exe' }
@@ -30,3 +34,5 @@ foreach ($architecture in @('ARM64','x86','')) {
  if (-not $rejected -or $script:ReachedInstall) {throw 'Unsupported architecture reached installation.'}
 }
 Write-Host 'PowerShell platform checks passed without RuntimeInformation.OSArchitecture.'
+
+'@))

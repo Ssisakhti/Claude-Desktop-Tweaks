@@ -120,8 +120,9 @@ func TestWindowsDiscoveryWithoutRuntimeArchitecture(t *testing.T) {
 		out, e := cmd.CombinedOutput()
 		return string(out), e
 	}
-	prefix := `Add-Type -TypeDefinition 'namespace Runtime.InteropServices { public static class RuntimeInformation { public static object OSArchitecture { get { return null; } } } }';if ($null -ne [Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {throw 'Missing-property fixture was not loaded.'};`
-	out, e := i.powershell(prefix + windowsDiscovery)
+	prefix := `$legacy=Add-Type -PassThru -TypeDefinition 'namespace CdtFixture { public static class LegacyRuntimeInformation { public static object OSArchitecture { get { return null; } } } }';$aliases=[psobject].Assembly.GetType('System.Management.Automation.TypeAccelerators');$aliases::Add('Runtime.InteropServices.RuntimeInformation',$legacy);`
+	body := `if ($null -ne [Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {throw 'Missing-property fixture was not loaded.'};` + windowsDiscovery
+	out, e := i.powershell(prefix + "& ([scriptblock]::Create(" + powerShellLiteral(body) + "))")
 	if e != nil {
 		t.Fatalf("discovery relied on RuntimeInformation.OSArchitecture: %v %s", e, out)
 	}
