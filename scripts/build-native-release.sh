@@ -8,9 +8,11 @@ cd "$root"
 node scripts/build-native-payload.cjs
 mkdir -p dist
 cd native
+for platform in darwin linux; do
 for arch in arm64 amd64; do
- GOOS=darwin GOARCH=$arch CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$version" -o "$root/dist/claude-tweaks_darwin_$arch" ./cmd/claude-tweaks
+ GOOS=$platform GOARCH=$arch CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$version" -o "$root/dist/claude-tweaks_${platform}_$arch" ./cmd/claude-tweaks
+done
 done
 cd "$root/dist"
-shasum -a 256 claude-tweaks_darwin_arm64 claude-tweaks_darwin_amd64 > checksums.txt
-printf 'Built standalone macOS releases in dist/.\n'
+shasum -a 256 claude-tweaks_darwin_arm64 claude-tweaks_darwin_amd64 claude-tweaks_linux_arm64 claude-tweaks_linux_amd64 > checksums.txt
+printf 'Built standalone macOS and Linux releases in dist/.\n'

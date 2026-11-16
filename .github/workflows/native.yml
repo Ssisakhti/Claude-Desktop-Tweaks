@@ -26,9 +26,15 @@ jobs:
       - run: go vet ./...
         working-directory: native
       - run: bash scripts/build-native-release.sh test
+      - name: Smoke-test native Linux executable
+        if: runner.os == 'Linux'
+        run: |
+          ./dist/claude-tweaks_linux_amd64 --version
+          ./dist/claude-tweaks_linux_amd64 --help
       - uses: actions/upload-artifact@v4
         with:
-          name: standalone-macos-${{ matrix.os }}
+          name: standalone-${{ matrix.os }}
           path: |
             dist/claude-tweaks_darwin_*
+            dist/claude-tweaks_linux_*
             dist/checksums.txt

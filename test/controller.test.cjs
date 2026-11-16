@@ -69,7 +69,7 @@ function fixture({ gate = null, failWeight = null, directionRegression = false, 
   state.computed.push(el.id);
   const computed = {
    fontFamily: el.getAttribute('data-native-font') || '"Native Default", sans-serif',
-   direction:el.closest('[dir]')?.getAttribute('dir') || 'ltr', display:el.style.display || (el.localName==='button'?'inline-block':'block'),
+   inlineSize:el.style.inlineSize||'auto', direction:el.closest('[dir]')?.getAttribute('dir') || 'ltr', display:el.style.display || (el.localName==='button'?'inline-block':'block'),
    colorScheme:el===document.documentElement&&!shellDark?'dark':'normal', backgroundColor:'rgb(46, 52, 64)', fontWeight:'400'
   };
   for (const sheet of state.sheets) {
@@ -82,6 +82,8 @@ function fixture({ gate = null, failWeight = null, directionRegression = false, 
     const direction=body.match(/direction:(rtl|ltr)/);
     if (family) computed.fontFamily=family[1].replace(/!important$/,'').trim();
     if (direction) computed.direction=direction[1];
+    const inlineSize=body.match(/(?:^|;)inline-size:([^;]+?)(?:!important)?;/);
+    if(inlineSize)computed.inlineSize=inlineSize[1].replace(/!important$/,'').trim();
    }
   }
   return computed;
@@ -103,7 +105,7 @@ function fixture({ gate = null, failWeight = null, directionRegression = false, 
 
 test('Snapshots and standalone toString functions match the module revision',async()=>{
  const f=fixture();
- assert.equal(CONTROLLER_REVISION,8);
+ assert.equal(CONTROLLER_REVISION,9);
  assert.equal(installController.revision,CONTROLLER_REVISION);
  assert.equal(f.apply.revision,CONTROLLER_REVISION);
  const serialized=vm.runInContext('('+f.apply.toString()+')',f.context);
@@ -548,4 +550,12 @@ test('Reusing a suggestion element removes and restores its direction with the p
  marker(false);assert.equal(f.getComputedStyle(el).direction,'ltr');
  marker(true);assert.equal(f.getComputedStyle(el).direction,'rtl');
  assert.deepEqual(f.state.mutations,[]);f.window[key].dispose();
+});
+
+
+test('A preview fills its existing text slot without resizing editor or controls',async()=>{
+ const f=fixture({suggestion:'این یک پیشنهاد فارسی است.'});await f.apply({kind:'chat',features:{font:false,theme:false,rtl:true}},fonts,f.scope,f.bidi,f.nord);
+ assert.equal(f.getComputedStyle(f.document.getElementById('suggestion')).inlineSize,'100%');
+ for(const id of ['suggestion-editor','suggestion-editor-shell','suggestion-shell','suggestion-control'])assert.equal(f.getComputedStyle(f.document.getElementById(id)).inlineSize,'auto',id);
+ f.window[key].dispose();
 });

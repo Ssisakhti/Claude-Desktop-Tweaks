@@ -1,6 +1,6 @@
 # Claude Desktop Tweaks
 
-Estedad fonts, paragraph direction, and a Nord dark theme for Claude Desktop on macOS.
+Estedad fonts, paragraph direction, and a Nord dark theme for Claude Desktop on macOS and official Ubuntu/Debian Linux.
 
 The tweaks run in memory inside the official app. Claude's files, signature, ASAR archive, and security settings stay unchanged. The automatic extension applies them at page load without controlling the keyboard or mouse. The existing Hammerspoon console integration remains available. Neither method opens Chrome.
 
@@ -17,7 +17,7 @@ The tweaks run in memory inside the official app. Claude's files, signature, ASA
 
 ## Standalone terminal installer
 
-The new English Bubble Tea interface provides independent switches for the Estedad font, Nord theme, and automatic RTL. Its standalone macOS executable needs no Node.js or Go. It checks prerequisites, requests approval before downloading missing Claude, and preserves installation backups.
+The new English Bubble Tea interface provides independent switches for the Estedad font, Nord theme, and automatic RTL. Its standalone macOS and Linux executables needs no Node.js or Go. It checks prerequisites, requests approval before downloading missing Claude, and preserves installation backups.
 
 Install with one command:
 
@@ -27,7 +27,7 @@ curl --fail --silent --show-error --location --proto '=https' --proto-redir '=ht
 
 See the [terminal installer guide](docs/terminal-installer.md) for controls, prerequisite approval, settings changes, and recovery. The existing Node-based method below remains available.
 
-## Automatic installation
+## Automatic installation on macOS
 
 The extension applies fonts, text direction, and colors automatically in chat, document artifacts, and comments. It needs no Hammerspoon watcher or idle input period. Local acceptance passed on Claude Desktop 5.11492.5, including an ordinary app launch and nested document reloads.
 
@@ -59,7 +59,7 @@ The installer copies the runtime to a private Hammerspoon directory. Once instal
 
 ## Supported behavior and limits
 
-Only macOS and the official Claude Desktop app are supported. Hammerspoon controls Claude's interface, so the console may appear briefly. User input, an unverified context, or developer tools already open can delay or stop a transaction.
+The standalone installer supports macOS and the official Linux package on Ubuntu 22.04+ and Debian 12+ (x64 and arm64). Linux support is experimental: package compatibility and container tests pass, but graphical chat/artifact acceptance has not been run on Linux. Hammerspoon and the Node installer remain macOS-only. Hammerspoon controls Claude's interface, so the console may appear briefly. User input, an unverified context, or developer tools already open can delay or stop a transaction.
 
 The latest local cold-start check completed on the first attempt after waiting for guest content. A separate four-frame document check also completed without a retry. These local checks do not guarantee zero-retry behavior for every launch or app version. Chat navigation reuses the in-page controller when the frame layout is unchanged. Reloads without an observed loading or frame-layout change may need **Reapply in Claude in 3 seconds** from the **CDT** menu. Native Quick Entry without an HTML frame is outside the tool's scope. A second simultaneous native window for ordinary chat has not been verified. See [testing and limitations](docs/testing.md).
 

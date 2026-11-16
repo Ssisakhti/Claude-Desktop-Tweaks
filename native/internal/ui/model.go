@@ -59,6 +59,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
 	case checked:
+		m.status.Platform = msg.status.Platform
 		if msg.err != nil {
 			m.err = msg.err
 			m.screen = "error"
@@ -269,7 +270,7 @@ func (m Model) View() tea.View {
 		return v
 	}
 	width := min(w-4, 108)
-	header := pair(accent.Render("◈  CLAUDE TWEAKS"), badge(" macOS ", false), width)
+	header := pair(accent.Render("◈  CLAUDE TWEAKS"), badge(" "+m.platformName()+" ", false), width)
 	step := 0
 	if m.screen == "features" || m.screen == "review" || m.screen == "discard" {
 		step = 1
@@ -334,7 +335,7 @@ func (m Model) body(w, h int) string {
 		if m.status.ExtensionInstalled {
 			saved = "Installed · settings restored"
 		}
-		rows := []string{heading("Everything starts here.", "Your choices stay local to this Mac."), "", pair("macOS", badge("READY", true), w), pair("Claude Desktop", text.Render(claude), w), pair("Application status", dim.Render(closed), w), pair("Your preferences", dim.Render(saved), w), "", accent.Render("One executable. No Node.js or Go required."), dim.Width(w).Render("Uses a local extension. Claude's app files and your conversations stay unchanged.")}
+		rows := []string{heading("Everything starts here.", "Your choices stay on this computer."), "", pair(m.platformName(), badge("READY", true), w), pair("Claude Desktop", text.Render(claude), w), pair("Application status", dim.Render(closed), w), pair("Your preferences", dim.Render(saved), w), "", accent.Render("One executable. No Node.js or Go required."), dim.Width(w).Render("Uses a local extension. Claude's app files and your conversations stay unchanged.")}
 		return strings.Join(rows, "\n")
 	case "features":
 		rows := []string{heading("Make Claude feel like yours.", "Choose any combination. Change it any time."), ""}
@@ -367,6 +368,9 @@ func (m Model) body(w, h int) string {
 		}
 		return heading("Your setup, ready to apply.", "Review your choices before anything changes.") + "\n\n" + m.summary(w) + "\n\n" + lip.NewStyle().Foreground(color).Width(w).Render(note) + "\n\n" + dim.Width(w).Render("The current extension is backed up when replaced. Open Claude normally after setup.")
 	case "download":
+		if m.status.Platform == "linux" {
+			return heading("Claude Desktop is missing.", "Install the official Ubuntu or Debian package.") + "\n\n" + text.Width(w).Render("Source       Anthropic's signed apt repository\nDestination  System package manager\nVerification Vendor key fingerprint and apt signatures") + "\n\n" + dim.Width(w).Render("Installs Claude and required packages. A system permission prompt will request administrator approval. Requires PolicyKit (pkexec). Repository settings stay available for future updates. No installation starts until you approve.") + "\n\n" + accent.Render("Approve package installation?  [y/N]")
+		}
 		return heading("Claude Desktop is missing.", "Install the official app before applying your tweaks.") + "\n\n" + text.Width(w).Render("Source       Anthropic's official download\nDestination  Your Applications folder\nVerification Vendor signature and macOS checks") + "\n\n" + dim.Width(w).Render("This downloads Claude and copies the verified app. Your existing apps are preserved. No download starts until you approve.") + "\n\n" + accent.Render("Approve download and installation?  [y/N]")
 	case "working":
 		label := "Applying your choices"
@@ -456,3 +460,10 @@ func fit(s string, w, h int) string {
 
 // Error reports the final failure after the terminal has been restored.
 func (m Model) Error() error { return m.err }
+
+func (m Model) platformName() string {
+	if m.status.Platform == "linux" {
+		return "Linux"
+	}
+	return "macOS"
+}

@@ -28,6 +28,9 @@ func (i *Installer) claudePath() string {
 	return ""
 }
 func (i *Installer) Check() (Status, error) {
+	if i.Platform == "linux" {
+		return i.checkLinux()
+	}
 	s := Status{Platform: i.Platform, Features: DefaultFeatures()}
 	if i.Platform != "darwin" {
 		return s, errors.New("this installer currently supports macOS only")
@@ -66,6 +69,9 @@ func (i *Installer) Check() (Status, error) {
 func (i *Installer) InstallClaude(confirmed bool) (retErr error) {
 	if !confirmed {
 		return errors.New("explicit confirmation is required before downloading Claude")
+	}
+	if i.Platform == "linux" {
+		return i.installLinuxClaude()
 	}
 	if i.Platform != "darwin" {
 		return errors.New("this installer currently supports macOS only")

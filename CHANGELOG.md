@@ -1,8 +1,18 @@
 # Changelog
 
-## 1.1.2 — 2026-11-16
+## 1.2.0 — 2026-11-16
+
+- Add experimental standalone Linux installers for official Claude Desktop on Ubuntu 22.04+ and Debian 12+, x64 and arm64.
+- Keep font, theme, and RTL switches independent, including later changes and all-off.
+- Configure an owned user desktop entry with process-scoped startup, safe XDG paths, transactional rollback, and installation-lock cleanup.
+- Require explicit consent and system permission before installing missing Claude from Anthropic's signed apt repository.
+- Publish four platform executables with SHA-256 checksums through the same bootstrap command.
+- Carry the unreleased intrinsic-width Persian suggestion alignment correction into this release. Linux graphical acceptance remains unverified.
+
+### Composer fixes included in 1.2.0
 
 - Apply independent font and RTL choices to the unaccepted composer suggestion preview, including its accessibility-hidden text layer.
+- Fill only the preview text slot so intrinsic flex sizing cannot leave RTL text at the left edge. Preserve editor and control sizing.
 - Recompute each replacement suggestion immediately, including short English replacements, without counting the preview as accepted editor text.
 - Preserve composer controls, suggestion visibility and acceptance, and ordinary hidden-content exclusions.
 - Use generic installer release naming; Nord remains a theme choice and the terminal interface palette.

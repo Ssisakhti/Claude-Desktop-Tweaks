@@ -8,12 +8,16 @@ while [ "$#" -gt 0 ]; do
  case "$1" in
   --version) [ "$#" -ge 2 ] || fail 'Missing release version.'; release=$2; shift 2;;
   --no-launch) launch=0; shift;;
-  --help|-h) printf '%s\n' 'Claude Desktop Tweaks' 'Options: --version v1.1.2  --no-launch'; exit 0;;
+  --help|-h) printf '%s\n' 'Claude Desktop Tweaks' 'Options: --version v1.2.0  --no-launch'; exit 0;;
   *) fail 'Unknown option. Use --help.';;
  esac
 done
-[ "$(uname -s)" = Darwin ] || fail 'This installer currently supports macOS only.'
-case "$(uname -m)" in arm64) arch=arm64;; x86_64) arch=amd64;; *) fail 'Unsupported Mac architecture.';; esac
+case "$(uname -s)" in
+ Darwin) platform=darwin;;
+ Linux) platform=linux;;
+ *) fail 'This installer supports macOS, Ubuntu, and Debian.';;
+esac
+case "$(uname -m)" in arm64|aarch64) arch=arm64;; x86_64|amd64) arch=amd64;; *) fail 'Unsupported processor architecture.';; esac
 repository=https://github.com/Ssisakhti/Claude-Desktop-Tweaks
 if [ "$release" = latest ]; then
  effective=$(curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 --max-time 60 --output /dev/null --write-out '%{url_effective}' "$repository/releases/latest") || fail 'No release could be found. No files were installed.'
@@ -21,7 +25,7 @@ if [ "$release" = latest ]; then
 fi
 case "$release" in v[0-9]*) ;; *) fail 'Invalid release version.';; esac
 case "$release" in *[!A-Za-z0-9._-]*|*..*) fail 'Invalid release version.';; esac
-asset=claude-tweaks_darwin_$arch
+asset=claude-tweaks_${platform}_$arch
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/claude-tweaks.XXXXXX")
 staged=
 cleanup() { rm -rf "$scratch"; if [ -n "$staged" ]; then rm -f "$staged"; fi; }
@@ -35,7 +39,11 @@ done
 expected=$(awk -v name="$asset" '$2 == name { value=$1; count++ } END { if (count != 1) exit 1; print value }' "$scratch/checksums.txt") || fail 'Release checksum is missing or ambiguous.'
 [ "${#expected}" -eq 64 ] || fail 'Invalid release checksum.'
 case "$expected" in *[!0-9a-f]*) fail 'Invalid release checksum.';; esac
-hash_file() { shasum -a 256 "$1" | awk '{print $1}'; }
+hash_file() {
+ if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}';
+ elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}';
+ else fail 'A SHA-256 tool is required (sha256sum or shasum).'; fi
+}
 [ "$(hash_file "$scratch/$asset")" = "$expected" ] || fail 'Checksum verification failed. No files were installed.'
 printf 'Download verified. No Node.js or Go installation is needed.\n'
 uid=$(id -u)
@@ -50,8 +58,20 @@ safe_directory() {
  (( (8#$mode & 0022) == 0 )) || fail 'An installation directory is writable by other users.'
 }
 safe_directory "$HOME"
+if [ "$platform" = darwin ]; then
+ base="$HOME/Library/Application Support/Claude Desktop Tweaks"
+else
+ data_base=${XDG_DATA_HOME:-$HOME/.local/share}
+ case "$data_base" in /*) ;; *) data_base="$HOME/.local/share";; esac
+ base="$data_base/Claude Desktop Tweaks"
+fi
+case "$base" in "$HOME"/*) ;; *) fail 'The installation directory must be inside your home directory.';; esac
+remaining=${base#"$HOME"/}/releases/$release/$arch
 current=$HOME
-for part in Library 'Application Support' 'Claude Desktop Tweaks' releases "$release" "$arch"; do
+while [ -n "$remaining" ]; do
+ part=${remaining%%/*}
+ case "$part" in ''|.|..) fail 'Unsafe installation directory.';; esac
+ if [ "$remaining" = "$part" ]; then remaining=; else remaining=${remaining#*/}; fi
  current=$current/$part
  safe_directory "$current"
 done

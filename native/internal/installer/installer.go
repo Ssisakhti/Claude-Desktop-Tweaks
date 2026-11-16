@@ -43,6 +43,7 @@ type Receipt struct {
 	ExtensionSHA256      string   `json:"extensionSha256"`
 	PreviousReactProfile *string  `json:"previousReactProfile"`
 	HammerspoonBackup    string   `json:"hammerspoonBackup"`
+	LauncherSHA256       string   `json:"launcherSha256,omitempty"`
 }
 type Result struct {
 	Changed bool   `json:"changed"`
@@ -54,6 +55,9 @@ type Installer struct {
 	Platform     string
 	Run          Runner
 	Applications string
+	SystemRoot   string
+	ConfigHome   string
+	DataHome     string
 }
 type ExitError struct{ Code int }
 
@@ -61,7 +65,7 @@ func (e ExitError) Error() string       { return fmt.Sprintf("system command exi
 func exitCode(err error, code int) bool { var e ExitError; return errors.As(err, &e) && e.Code == code }
 func RunSystem(command string, args ...string) (string, error) {
 	timeout := 15 * time.Second
-	if command == "/usr/bin/curl" {
+	if command == "/usr/bin/curl" || command == "/usr/bin/pkexec" {
 		timeout = 10 * time.Minute
 	}
 	if command == "/usr/bin/hdiutil" || command == "/usr/bin/ditto" {
@@ -90,7 +94,7 @@ func New() (*Installer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Installer{Home: home, Platform: runtime.GOOS, Run: RunSystem, Applications: "/Applications"}, nil
+	return &Installer{Home: home, Platform: runtime.GOOS, Run: RunSystem, Applications: "/Applications", ConfigHome: os.Getenv("XDG_CONFIG_HOME"), DataHome: os.Getenv("XDG_DATA_HOME")}, nil
 }
 func Payload(f Features) (map[string][]byte, error) {
 	files := map[string][]byte{}
@@ -122,9 +126,15 @@ func token() string {
 	return hex.EncodeToString(b[:])
 }
 func (i *Installer) target() string {
+	if i.Platform == "linux" {
+		return filepath.Join(i.linuxConfig(), "Claude/extensions", ExtensionID)
+	}
 	return filepath.Join(i.Home, "Library/Application Support/Claude/extensions", ExtensionID)
 }
 func (i *Installer) stateDir() string {
+	if i.Platform == "linux" {
+		return filepath.Join(i.linuxData(), "Claude Desktop Tweaks")
+	}
 	return filepath.Join(i.Home, "Library/Application Support/Claude Desktop Tweaks")
 }
 func (i *Installer) receiptPath() string {
@@ -450,6 +460,9 @@ func migrateConfig(b []byte) ([]byte, error) {
 }
 
 func (i *Installer) Install(features Features) (result Result, retErr error) {
+	if i.Platform == "linux" {
+		return i.installLinux(features)
+	}
 	if i.Platform != "darwin" {
 		return result, errors.New("automatic installation supports macOS only")
 	}

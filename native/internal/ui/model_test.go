@@ -193,3 +193,17 @@ func TestBusyExitIsDeferredUntilCleanup(t *testing.T) {
 		t.Fatal("completion state lost")
 	}
 }
+
+func TestLinuxInterfaceHasCorrectPlatformAndConsent(t *testing.T) {
+	m, _ := ready()
+	m.status.Platform = "linux"
+	text := ansi.Strip(m.View().Content)
+	if strings.Contains(text, "macOS") || !strings.Contains(text, "Linux") {
+		t.Fatal("wrong platform badge")
+	}
+	m.screen = "download"
+	text = ansi.Strip(m.View().Content)
+	if !strings.Contains(text, "apt") || !strings.Contains(text, "system permission") || strings.Contains(text, "Applications folder") {
+		t.Fatal("wrong Linux prerequisite consent")
+	}
+}
