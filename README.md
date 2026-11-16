@@ -2,7 +2,7 @@
 
 Estedad fonts, paragraph direction, and a Nord dark theme for Claude Desktop on macOS.
 
-The tweaks run in memory inside the official app. Claude's files, signature, ASAR archive, and security settings stay unchanged. The tool uses Hammerspoon and Claude's built-in console. It does not open Chrome.
+The tweaks run in memory inside the official app. Claude's files, signature, ASAR archive, and security settings stay unchanged. The automatic extension applies them at page load without controlling the keyboard or mouse. The existing Hammerspoon console integration remains available. Neither method opens Chrome.
 
 [Installation and removal](docs/installation.md) · [Testing and limitations](docs/testing.md) · [Changelog](CHANGELOG.md)
 
@@ -15,7 +15,13 @@ The tweaks run in memory inside the official app. Claude's files, signature, ASA
 - Removed fonts and styles are restored within the same document.
 - Nord colors apply in dark mode.
 
-## Get started
+## Automatic installation
+
+The extension applies fonts, text direction, and colors automatically in chat, document artifacts, and comments. It needs no Hammerspoon watcher or idle input period. Local acceptance passed on Claude Desktop 5.11492.5, including an ordinary app launch and nested document reloads.
+
+Follow the [complete automatic installation guide](docs/extension.md#install-on-macos) to build the extension, test it, enable ordinary launches, and migrate from the old integration. The guide also covers updates and removal. The method uses an unofficial startup hook; a macOS logout/login cycle remains untested.
+
+## Hammerspoon installation
 
 You need macOS, the official Claude Desktop app, Node.js 22.12.0 or later, npm, and Hammerspoon. Give Hammerspoon Accessibility permission and keep it running while you use the tool.
 
@@ -38,6 +44,8 @@ Only macOS and the official Claude Desktop app are supported. Hammerspoon contro
 The latest local cold-start check completed on the first attempt after waiting for guest content. A separate four-frame document check also completed without a retry. These local checks do not guarantee zero-retry behavior for every launch or app version. Chat navigation reuses the in-page controller when the frame layout is unchanged. Reloads without an observed loading or frame-layout change may need **Reapply in Claude in 3 seconds** from the **CDT** menu. Native Quick Entry without an HTML frame is outside the tool's scope. A second simultaneous native window for ordinary chat has not been verified. See [testing and limitations](docs/testing.md).
 
 The default runtime remains the guarded console route. An independent direct-dispatch experiment is documented in [background bootstrap investigation](docs/background-bootstrap.md); it is not enabled by installation.
+
+The [automatic extension](docs/extension.md) uses the same controller for nested artifact frames. The Hammerspoon CLI does not install it; follow the separate guide and disable the old watcher before switching.
 
 ## Remove the integration
 

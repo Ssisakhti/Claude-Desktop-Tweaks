@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add an unpacked extension build for automatic font, direction, and Nord application in chat and nested artifact frames.
+- Include document `srcdoc` support, isolated controller lifecycle checks, and bundled font and code licenses.
+- Document installation, Hammerspoon migration, ordinary-launch startup, updates, and rollback.
+- Verify live Persian chat, document tables, comments, frame reloads, and ordinary launches on Claude Desktop 5.11492.5 separately from synthetic tests.
+
 - Add a complete bounded direct font/controller plan with shared production health checks and semantic tests.
 - Verify local console focus before direct writes and wait safely for asynchronous focus acknowledgements.
 - Verify child-frame handoffs against both the target and chat parent, and classify browser ancestry before creating document identities.

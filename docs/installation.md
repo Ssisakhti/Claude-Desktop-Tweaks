@@ -1,4 +1,6 @@
-# Installation and removal
+# Hammerspoon installation and removal
+
+For automatic page-load application without Hammerspoon or an idle input period, use the [extension installation guide](extension.md#install-on-macos). This page documents the existing console integration. Do not enable both methods together.
 
 ## Requirements
 
