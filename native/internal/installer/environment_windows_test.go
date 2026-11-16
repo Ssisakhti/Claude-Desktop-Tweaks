@@ -1,10 +1,12 @@
 package installer
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -102,5 +104,32 @@ func TestWindowsRejectsJunctionParent(t *testing.T) {
 	entries, e := os.ReadDir(outside)
 	if e != nil || len(entries) != 0 {
 		t.Fatal("external directory changed")
+	}
+}
+
+func TestWindowsDiscoveryWithoutRuntimeArchitecture(t *testing.T) {
+	i, e := New()
+	if e != nil {
+		t.Fatal(e)
+	}
+	i.Run = func(command string, args ...string) (string, error) {
+		cmd := exec.Command(command, args...)
+		if e := configureSystemCommand(cmd); e != nil {
+			return "", e
+		}
+		out, e := cmd.CombinedOutput()
+		return string(out), e
+	}
+	prefix := `Add-Type -TypeDefinition 'namespace Runtime.InteropServices { public static class RuntimeInformation { public static object OSArchitecture { get { return null; } } } }';if ($null -ne [Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {throw 'Missing-property fixture was not loaded.'};`
+	out, e := i.powershell(prefix + windowsDiscovery)
+	if e != nil {
+		t.Fatalf("discovery relied on RuntimeInformation.OSArchitecture: %v %s", e, out)
+	}
+	var status windowsSystem
+	if e = json.Unmarshal([]byte(strings.TrimSpace(out)), &status); e != nil {
+		t.Fatal(e)
+	}
+	if status.Architecture != "X64" || status.Build < 22000 {
+		t.Fatalf("unexpected native Windows discovery: %+v", status)
 	}
 }

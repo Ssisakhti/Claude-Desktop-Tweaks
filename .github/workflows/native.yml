@@ -30,7 +30,9 @@ jobs:
       - name: Windows bootstrap checks
         if: runner.os == 'Windows'
         shell: powershell
-        run: ./test/bootstrap-windows.ps1
+        run: |
+          ./test/powershell-platform.ps1
+          ./test/bootstrap-windows.ps1
       - name: Smoke-test Windows executable
         if: runner.os == 'Windows'
         shell: powershell
