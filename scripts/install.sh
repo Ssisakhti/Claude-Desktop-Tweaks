@@ -8,7 +8,7 @@ while [ "$#" -gt 0 ]; do
  case "$1" in
   --version) [ "$#" -ge 2 ] || fail 'Missing release version.'; release=$2; shift 2;;
   --no-launch) launch=0; shift;;
-  --help|-h) printf '%s\n' 'Claude Desktop Tweaks' 'Options: --version v1.4.1  --no-launch'; exit 0;;
+  --help|-h) printf '%s\n' 'Claude Desktop Tweaks' 'Options: --version v1.5.0  --no-launch'; exit 0;;
   *) fail 'Unknown option. Use --help.';;
  esac
 done
@@ -115,7 +115,7 @@ hash_file() {
 }
 [ "$(hash_file "$scratch/$asset")" = "$expected" ] || fail 'Checksum verification failed. No files were installed.'
 progress_end
-printf 'Download verified. No Node.js or Go installation is needed.\n'
+printf 'Download verified.\n'
 uid=$(id -u)
 safe_directory() {
  local directory=$1 metadata owner mode

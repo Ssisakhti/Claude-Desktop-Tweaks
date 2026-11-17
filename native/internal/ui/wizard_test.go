@@ -2,6 +2,7 @@ package ui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"encoding/json"
 	"fmt"
 	"github.com/Ssisakhti/Claude-Desktop-Tweaks/native/internal/installer"
 	"github.com/charmbracelet/x/ansi"
@@ -178,5 +179,69 @@ func TestClaudeOpenedAfterInitialCheckUsesBlockedScreen(t *testing.T) {
 	m = next.(Model)
 	if m.screen != "blocked" || b.installs != 0 {
 		t.Fatal("stale check bypassed blocked screen", m.screen, b.installs)
+	}
+}
+
+func TestUpdateShowsVersionsAndPreservesSavedChoices(t *testing.T) {
+	for _, platform := range []string{"darwin", "linux", "windows"} {
+		b := &fakeBackend{}
+		raw := `{"platform":"` + platform + `","claudeInstalled":true,"extensionInstalled":true,"installationDetected":true,"installedVersion":"1.4.1","availableVersion":"1.5.0","updateAvailable":true,"features":{"font":true,"theme":false,"rtl":true,"fontFamily":"vazirmatn","themeName":"gruvbox"}}`
+		if e := json.Unmarshal([]byte(raw), &b.status); e != nil {
+			t.Fatal(e)
+		}
+		m := New(b)
+		next, _ := m.Update(m.Init()())
+		m = next.(Model)
+		view := ansi.Strip(m.View().Content)
+		for _, want := range []string{"Installed", "1.4.1", "Available", "1.5.0", "Update"} {
+			if !strings.Contains(view, want) {
+				t.Fatal("missing update UI", platform, want, view)
+			}
+		}
+		expected := m.draft
+		for n := 0; n < 3; n++ {
+			m, _ = press(m, tea.KeyDown)
+		}
+		m, _ = press(m, tea.KeyEnter)
+		if m.screen != "review" || m.draft != expected || b.installs != 0 {
+			t.Fatal("update did not preserve choices and review")
+		}
+		m, cmd := press(m, tea.KeyEnter)
+		m = runFlow(m, cmd)
+		if m.screen != "done" || m.draft != expected || b.installs != 1 || b.lastFeatures != expected {
+			t.Fatal("update did not finish")
+		}
+	}
+}
+
+func TestVersionRowsAndUpdateActionFitCompactTerminal(t *testing.T) {
+	m, _ := ready()
+	m.status.InstalledVersion = "1.4.1"
+	m.status.AvailableVersion = "1.5.0"
+	m.status.InstallationDetected = true
+	m.status.UpdateAvailable = true
+	for _, screen := range []string{"settings", "review"} {
+		for _, height := range []int{22, 24, 30} {
+			m.screen = screen
+			m.width = 60
+			m.height = height
+			s := ansi.Strip(m.View().Content)
+			for _, label := range []string{"Installed", "1.4.1", "Available", "1.5.0", "[ Update ]", "Enter"} {
+				if !strings.Contains(s, label) {
+					t.Fatal("version/update action hidden", screen, height, label, s)
+				}
+			}
+		}
+	}
+}
+func TestNewerInstalledVersionCannotBeAppliedFromTheInterface(t *testing.T) {
+	m, b := ready()
+	m.screen = "review"
+	m.cursor = 3
+	m.status.InstalledVersion = "9.0.0"
+	m.status.AvailableVersion = "1.5.0"
+	m, cmd := press(m, tea.KeyEnter)
+	if m.screen != "settings" || cmd != nil || b.installs != 0 {
+		t.Fatal("older installer allowed apply")
 	}
 }

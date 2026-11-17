@@ -10,7 +10,7 @@
 
 Use the official Claude Desktop app. Linux requires the official Ubuntu or Debian package. Windows requires Anthropic's x64 MSIX package and its standard local profile. Windows ARM64, AppImage, and Flatpak are not supported.
 
-Hammerspoon, Node.js, and Go are not needed. See [tests and known limits](testing.md) for verified coverage.
+See [tests and known limits](testing.md) for verified coverage.
 
 ## Install on macOS or Linux
 
@@ -49,7 +49,7 @@ On Windows, open Claude normally after setup. The installer changes only the cur
 
 ## Update or change settings
 
-Run the same command again. It downloads the current release and opens your saved choices. You can also use the full settings path printed by the installer.
+Run the same command again. It gets the latest published installer and opens your saved choices. Installed and Available show the extension and installer package versions. Select Update, review your choices, and confirm. A newer installed version is preserved. You can also reopen settings with the path printed by the installer.
 
 Quit Claude before applying, then reopen it. Selecting all options off disables the tweaks without removing their files.
 

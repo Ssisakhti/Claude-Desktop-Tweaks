@@ -1,99 +1,53 @@
-# Terminal installer
+# Installer
 
-The installer is a standalone executable with an English interface and Nord colors. It does not need Node.js, Go, Homebrew, Hammerspoon, or an Apple developer certificate.
+The installer is a standalone executable with an English terminal interface and Nord colors. Use the commands in the [README](../README.md) to install it or get the latest release.
 
-[Download the latest release](https://github.com/Ssisakhti/Claude-Desktop-Tweaks/releases/latest), or use the command below.
+## Setup
 
-## Install on macOS or Linux
+Checks run automatically. If Claude is missing, setup shows its official source and waits for **Y** before downloading or installing it. Approve system permission prompts yourself.
 
-```sh
-curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash
-```
+New installations have four steps:
 
-The script detects your system and processor, downloads one release, checks its SHA-256 checksum, and opens the interface. It prints the full path for reopening settings. It does not change your shell profile or PATH.
+1. **Font:** Estedad, Vazirmatn, or Use Claude default.
+2. **Theme:** Nord, Gruvbox Dark, or Use Claude default. A local preview follows your selection.
+3. **Direction:** Automatic or Use Claude default.
+4. **Apply:** review your choices, edit a row, and apply.
 
-During download, a fixed progress area shows the percentage, received size, and average speed when the server provides a total size. Unknown totals use a spinner and received size. Plain or redirected terminals show phase messages. `NO_COLOR` disables colors. Cancel with Ctrl+C; partial downloads are removed. Stalled or failed transfers stop with a retry message.
+The terminal uses its own font. The selected Persian font applies inside Claude.
 
-The checksum checks download integrity. Downloads rely on HTTPS and this repository's release permissions for authenticity.
+## Versions and settings
 
-The script needs Bash, curl, and either `sha256sum` or `shasum`. Linux supports the official Claude package on Ubuntu 22.04+ and Debian 12+, for x64 and ARM64. Linux display checks are pending, so support remains experimental. Windows ARM64, AppImage, and Flatpak are not supported.
+An existing installation opens saved settings. **Installed** shows the owned extension's version; **Available** shows the version bundled with this installer. Running the install command gets the latest published installer.
 
-## Install on Windows 11 x64
+**Update** reviews the update with your saved choices. If you edit a choice, the review shows **Update and apply changes**. A matching version shows **Up to date**. An installer cannot replace a newer installed version with an older one. Unreadable version metadata is shown as **Unknown**; unrecognized files are preserved.
 
-Run in PowerShell:
-
-```powershell
-& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1')))
-```
-
-The Windows script uses the built-in PowerShell runtime, checks HTTPS redirects and the release checksum, and preserves existing files. It does not change PowerShell execution policy. Windows support is experimental: live Claude startup and display checks are pending.
+Changes require an explicit confirmation. If Claude is open, setup shows **Check again** and **Back**. Refreshing the status does not apply changes automatically.
 
 ## Controls
 
 | Key | Action |
 | --- | --- |
-| Up / Down | Choose an option or settings row |
-| Enter | Continue, edit a row, or use the selected action |
-| Escape | Go back without losing choices |
-| R | Refresh the check on the review or settings page |
-| Q | Exit; confirm if you have unsaved changes |
+| Up / Down | Choose an option or row |
+| Enter | Use the selected action |
+| Escape | Go back |
+| R | Refresh the status on settings and review screens |
+| Q | Exit; confirm if choices are unsaved |
 
-Use a terminal at least 60 columns wide and 22 rows high. The interface keeps one content column with a fixed label and value layout. The action hints stay at the bottom. `NO_COLOR` disables terminal colors.
+Use a terminal at least 60 columns wide and 22 rows high. Labels and values stay in fixed columns. Action hints stay at the bottom. `NO_COLOR` disables colors.
 
-## Setup and saved settings
+## Download feedback
 
-Checks run automatically. New installations have four steps: Font, Theme, Direction, and Apply. Existing installations open a settings summary. Select a row to edit it, then review and apply your changes.
+Known-size downloads show a bar, percentage, received size, and average speed. Unknown-size downloads show a spinner and received size. Narrow or redirected terminals show plain phase messages.
 
-Each choice is independent:
+Cancel with Ctrl+C. Partial downloads are removed. Interrupted or stalled transfers stop with retry guidance. SHA-256 verification runs before the executable is installed. HTTPS and the repository's release permissions provide download authenticity.
 
-- **Font:** Estedad, Vazirmatn, or Use Claude default. Both fonts use local variable WOFF2 files with weights 100–900. The installer loads only the selected font into Claude. It does not change your terminal font; the terminal cannot preview these fonts accurately.
-- **Theme:** Nord, Gruvbox Dark with hard contrast, or Use Claude default. A small colored message and composer preview changes as you move between themes. This preview does not change Claude. Themes apply in Claude's dark mode.
-- **Direction:** Automatic or Use Claude default. Automatic follows Persian and English text while preserving code and table column order.
+## Command options
 
-Use Claude default disables only that feature. Selecting defaults for all three leaves the extension installed without applying tweaks. The choices are saved when you apply. Quit Claude before applying changes, then reopen it. If Claude is open, the installer stops at a dedicated screen with Check again and Back. Your choices remain in the session; it never quits Claude or applies automatically after a refresh.
+| Option | Action |
+| --- | --- |
+| `--check` | Read-only JSON status, installed and available versions, and saved choices |
+| `--version` | Installer version |
+| `--help` | Help |
+| `--licenses` | Bundled license notices |
 
-## Missing Claude on macOS
-
-The installer shows the download source and destination and waits for **Y**. Enter does not approve a download.
-
-After approval, it downloads the official Claude disk image, verifies the vendor signature and macOS checks, copies the app into your Applications folder, and ejects the image. You do not open a DMG manually. Existing apps are preserved, and a failed verification stops installation.
-
-## Missing Claude on Ubuntu or Debian
-
-The installer waits for **Y**, then uses PolicyKit (`pkexec`) to request administrator permission through your desktop's authentication agent.
-
-It verifies the vendor signing key, adds Anthropic's signed apt repository, downloads Claude from that repository alone, and installs it with its required packages. If needed, apt also installs curl and GnuPG. The repository remains configured for Claude updates.
-
-Existing repository files with different contents are preserved, and installation stops. If PolicyKit or its authentication agent is unavailable, follow [Anthropic's installation instructions](https://support.claude.com/en/articles/10065433-install-claude-desktop), then run setup again.
-
-Applying the tweaks themselves does not need administrator permission on any supported system.
-
-## Missing Claude on Windows
-
-The interface waits for **Y** before downloading the official Claude Setup linked by Anthropic. It verifies the Windows vendor signature before opening the setup program. Approve any setup or system permission prompts yourself. If the download is blocked, install Claude from [Anthropic's download page](https://claude.com/download), then reopen settings.
-
-Open Claude once after installation, quit it, and return to setup. The installer supports the official x64 MSIX package and its standard local profile. It preserves unsupported installations rather than modifying them.
-
-## Reopen settings or download without opening
-
-Run the settings path printed by the script, or repeat the install command. Both install commands select the latest published release automatically. No version number is needed.
-
-On macOS or Linux, download the latest release without opening settings:
-
-```sh
-curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.sh | bash -s -- --no-launch
-```
-
-`--no-launch` installs only the settings executable. It does not apply tweaks or change Claude's startup.
-
-On Windows, download the latest release without opening settings:
-
-```powershell
-& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1'))) -NoLaunch
-```
-
-`-NoLaunch` installs only the settings executable. It does not apply tweaks or change startup.
-
-The executable also accepts `--check` for read-only JSON status, `--version`, `--help`, and `--licenses`.
-
-See [installation and removal](installation.md) for file locations, startup, backups, and recovery.
+To download the settings executable without opening it, add `--no-launch` to the macOS/Linux bootstrap or `-NoLaunch` to the PowerShell bootstrap. This does not apply changes to Claude.

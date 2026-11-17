@@ -7,6 +7,7 @@ Automated tests and live app checks answer different questions. Passing a test s
 | Area | Coverage |
 | --- | --- |
 | Feature selection | All eight enable/disable combinations with each font/theme pair, saved choices, changes, and defaults |
+| Updates | Owned manifest detection, numeric versions, unknown metadata, downgrade refusal, saved choices, and explicit update confirmation |
 | Installation | Ownership checks, foreign-file preservation, locks, backups, rollback, running-app guards, and prerequisite consent |
 | macOS display | Live checks on Apple silicon with Claude 5.11492.5 cover sampled chat replies, document artifacts, comments, reloads, and ordinary app startup |
 | Linux installation | Tests in isolated Ubuntu 22.04 and Debian 12 containers, including separate config/data filesystems |
@@ -42,17 +43,6 @@ go vet ./...
 
 Use Node.js 22.12.0 or later and Go 1.27.4 for development. End users need neither.
 
-Run the Lua suites with Lua 5.4:
-
-```sh
-python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console.lua --test test/hammerspoon-console.test.lua
-python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console-auto.lua --test test/hammerspoon-console-auto.test.lua
-python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console-direct.lua --test test/hammerspoon-console-direct.test.lua
-python3 scripts/test-hammerspoon-lua.py --lua lua5.4 --module integrations/hammerspoon/claude-console-direct-native.lua --test test/hammerspoon-console-direct-native.test.lua
-```
-
-These test the console integration code. Hammerspoon and Lua are not prerequisites for the standalone installer.
-
 ## Build release files
 
 Run from the project directory:
@@ -63,21 +53,21 @@ bash scripts/build-native-release.sh dev
 
 The build produces five executables in `dist/`: macOS and Linux, each for x64 and ARM64, and Windows x64, plus `checksums.txt`. The Go binary embeds the controller, font, and licenses. Update `assets/terminal/LICENSES.txt` when compiled dependencies change.
 
-## Linux test inputs
+## Platform test inputs
 
 The installer tests use temporary homes and simulated system commands. An optional read-only archive check accepts `CDT_TEST_ASAR` pointing to an official Claude ASAR. `CDT_CROSS_FS_HOME` enables the update test with separate config and data mounts inside an isolated test home.
 
-The verified official amd64 package has SHA-256 `b96208b207e450b740f7dbe304f6077fed80e7f3d37ddd545991c4e8201564cf`. Archive inspection does not execute Claude or establish graphical behavior.
+Archive inspection is read-only and does not establish graphical behavior.
 
 Disk-error tests use temporary files and a resource limit in a child process. They do not fill the host disk. They cover failed writes, syncs, closes, short writes, lock cleanup, immediate retry, and preservation of replaced files.
 
 ## Windows checks
 
-Windows platform checks read the native architecture from the registry. Regression tests cover a missing .NET architecture property and reject unsupported or missing architecture values before installation.
+Windows platform checks read the native architecture from the registry. Tests reject unsupported or missing architecture values before installation.
 
 The native Windows runner checks the executable, all eight feature combinations, saved settings, file ownership and permissions, reparse-point rejection, environment value/type restoration, and refusal to overwrite concurrent changes. PowerShell bootstrap tests cover checksums, repeated installation, unsafe versions, and preservation of existing executables.
 
-The official x64 MSIX package version is 5.11492.5.0. Its archive and startup hook are inspected read-only. This does not verify ordinary Start Menu activation, account sign-in, chat rendering, or artifact behavior. Claude Setup download and permission prompts also require a live Windows check.
+The official x64 MSIX archive and startup hook are inspected read-only. This does not verify ordinary Start Menu activation, account sign-in, chat rendering, or artifact behavior. Claude Setup download and permission prompts also require a live Windows check.
 
 ## Live acceptance checklist
 

@@ -5,6 +5,10 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 version=${1:-dev}
 case "$version" in *[!A-Za-z0-9._-]*) printf 'Invalid build version.\n' >&2; exit 1;; esac
 cd "$root"
+case "$version" in
+ v*) expected_version=$(node -p "require('./package.json').version")
+     [ "$version" = "v$expected_version" ] || { printf 'Release tag does not match the package version.\n' >&2; exit 1; };;
+esac
 node scripts/build-native-payload.cjs
 mkdir -p dist
 cd native

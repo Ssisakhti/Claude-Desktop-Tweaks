@@ -127,23 +127,50 @@ func (m Model) body(w, h int) string {
 		return heading("Claude is still open", "Save your work, then quit Claude completely.") + "\n\n" + dim.Render("Your choices will stay here.") + "\n\n" + m.blockedActions()
 	case "settings", "review":
 		title, sub := "Your preferences", "Choose a row to edit. Apply when ready."
+		if m.dirty() {
+			sub = "Unsaved changes. Review before applying."
+		}
 		if m.screen == "review" {
 			title = "4 of 4 · Review your choices"
 			sub = "Choose a row to edit, or apply below."
+			if m.status.UpdateAvailable && !m.dirty() {
+				title = "Review update"
+				sub = "Your saved choices will be kept."
+			}
 		}
-		rows := []string{heading(title, sub), "", m.summary(w, true), ""}
+		rows := []string{heading(title, sub), ""}
+		if m.status.AvailableVersion != "" {
+			rows = append(rows, m.versionRows(), "")
+		}
+		rows = append(rows, m.summary(w, true), "")
 		if m.screen == "review" {
 			note := "✓ Claude found · closed and ready"
 			if m.status.ClaudeRunning {
 				note = "Claude is open. Save your work and quit it."
 			}
-			rows = append(rows, dim.Width(w).Render(note), "")
-		} else if m.dirty() {
-			rows = append(rows, dim.Render("Unsaved changes"), "")
+			if m.status.NewerVersionInstalled() {
+				note = "Run the install command to get the latest installer."
+			}
+			rows = append(rows, dim.Width(w).Render(note))
+			if h >= 26 {
+				rows = append(rows, "")
+			}
 		}
 		action := "Review changes"
+		if m.status.UpdateAvailable && !m.dirty() {
+			action = "Update"
+		}
 		if m.screen == "review" {
 			action = "Apply changes"
+			if m.status.UpdateAvailable {
+				action = "Update"
+				if m.dirty() {
+					action = "Update and apply changes"
+				}
+			}
+			if m.status.NewerVersionInstalled() {
+				action = "Back"
+			}
 		}
 		mark := "  "
 		if m.cursor == 3 {
@@ -284,4 +311,23 @@ func (m Model) blockedActions() string {
 		rows = append(rows, row)
 	}
 	return strings.Join(rows, "\n\n")
+}
+
+func (m Model) versionRows() string {
+	installed := m.status.InstalledVersion
+	if installed == "" {
+		installed = "Not installed"
+		if m.status.InstallationDetected {
+			installed = "Unknown"
+		}
+	}
+	available := m.status.AvailableVersion
+	if m.status.UpdateAvailable {
+		available += " · Update available"
+	} else if m.status.NewerVersionInstalled() {
+		available += " · Newer version installed"
+	} else if m.status.InstallationDetected {
+		available += " · Up to date"
+	}
+	return dim.Render(fmt.Sprintf("  %-12s%s\n  %-12s%s", "Installed", installed, "Available", available))
 }

@@ -48,6 +48,9 @@ func (i *Installer) installUserExtension(features Features, files map[string][]b
 		if source == nil || previous.ExtensionSHA256 == "" || hash(source) != previous.ExtensionSHA256 {
 			return result, errors.New("an existing extension is not owned by this installer; it was preserved")
 		}
+		if e = i.guardUpdateVersion(f); e != nil {
+			return result, e
+		}
 	}
 	same := installed != nil
 	for name, b := range files {
@@ -149,6 +152,11 @@ func (i *Installer) installUserExtension(features Features, files map[string][]b
 		return nil
 	}
 	if !same {
+		if installed != nil {
+			if e = i.guardUpdateVersion(f); e != nil {
+				return result, e
+			}
+		}
 		if e = f.parents(filepath.Dir(target), true); e != nil {
 			return result, e
 		}

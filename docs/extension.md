@@ -1,8 +1,8 @@
 # How the extension works
 
-Claude Desktop Tweaks loads an unpacked extension into the official Claude app. The extension applies the selected font, theme, and text direction when supported pages load. No Hammerspoon watcher or idle keyboard period is needed.
+Claude Desktop Tweaks loads an unpacked extension into the official Claude app. The extension applies the selected font, theme, and text direction when supported pages load.
 
-Use the [standalone installer](installation.md) to install or change settings. Node.js is needed only for source builds and development tools.
+Use the [standalone installer](installation.md) to install or change settings. See the [development guide](testing.md) for source builds.
 
 ## Loading and restart
 
@@ -47,6 +47,10 @@ For `about:srcdoc` frames, it uses browser-provided ancestor origins. It does no
 Styles stay in memory. The controller does not edit message text, document content, table column order, or code. It handles supported Persian prose separately from declared programming languages.
 
 The extension has no background worker, network requests, or storage permissions. Both variable fonts and their license notices are bundled locally; only the selected font is decoded and loaded. Nord and Gruvbox Dark share the same component and interaction rules with separate palettes.
+
+## Version checks
+
+The installer reads the installed manifest only after verifying the extension against its saved ownership digest. The available version comes from the embedded manifest. Version checks are read-only and use numeric comparison. The installer preserves saved feature choices and rejects downgrades.
 
 ## Diagnostics
 

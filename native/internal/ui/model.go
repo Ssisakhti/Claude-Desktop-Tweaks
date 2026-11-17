@@ -109,7 +109,9 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.goTo("download")
 		} else if m.returnTo == "apply" {
 			m.returnTo = ""
-			if m.status.ClaudeRunning {
+			if m.status.NewerVersionInstalled() {
+				m.goTo("settings")
+			} else if m.status.ClaudeRunning {
 				m.goTo("blocked")
 			} else {
 				m.screen = "working"
@@ -127,7 +129,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		} else if m.returnTo != "" {
 			m.goTo(m.returnTo)
 			m.returnTo = ""
-		} else if m.status.ExtensionInstalled {
+		} else if m.status.ExtensionInstalled || m.status.InstallationDetected {
 			m.goTo("settings")
 		} else {
 			m.goTo("font")
@@ -142,6 +144,9 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.result = msg.result
 			m.status.Features = m.draft
 			m.status.ExtensionInstalled = true
+			m.status.InstallationDetected = true
+			m.status.InstalledVersion = m.status.AvailableVersion
+			m.status.UpdateAvailable = false
 			m.screen = "done"
 		}
 		if m.exitPending {
@@ -270,6 +275,8 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				} else if m.screen == "settings" {
 					m.goTo("review")
 					m.cursor = 3
+				} else if m.status.NewerVersionInstalled() {
+					m.goTo("settings")
 				} else if !m.status.ClaudeRunning {
 					m.returnTo = "apply"
 					m.screen = "loading"

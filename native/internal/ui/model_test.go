@@ -11,6 +11,7 @@ import (
 
 type fakeBackend struct {
 	status              installer.Status
+	lastFeatures        installer.Features
 	installs, downloads int
 	fail                error
 }
@@ -18,6 +19,7 @@ type fakeBackend struct {
 func (b *fakeBackend) Check() (installer.Status, error) { return b.status, nil }
 func (b *fakeBackend) Install(f installer.Features) (installer.Result, error) {
 	b.installs++
+	b.lastFeatures = f
 	return installer.Result{Changed: true}, b.fail
 }
 func (b *fakeBackend) InstallClaude(yes bool) error {

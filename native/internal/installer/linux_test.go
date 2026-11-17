@@ -323,3 +323,5 @@ func TestLinuxVendorKeyRejectsAdditionalPrimaryKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestLinuxInstalledVersionAndSavedChoices(t *testing.T) { versionFixtureChecks(t, linuxFixture(t)) }

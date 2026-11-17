@@ -579,8 +579,11 @@ func (i *Installer) Install(features Features) (result Result, retErr error) {
 		var m struct {
 			Name string `json:"name"`
 		}
-		if json.Unmarshal(manifest, &m) != nil || m.Name != "Claude Desktop Persian Tweaks" || source == nil {
+		if json.Unmarshal(manifest, &m) != nil || !ownedManifestName(m.Name) || source == nil {
 			return result, errors.New("existing extension is not owned by this installer")
+		}
+		if err = i.guardUpdateVersion(f); err != nil {
+			return result, err
 		}
 		same, err = matches()
 		if err != nil {
@@ -730,6 +733,11 @@ func (i *Installer) Install(features Features) (result Result, retErr error) {
 		}
 	}
 	if !same {
+		if installed != nil {
+			if err = i.guardUpdateVersion(f); err != nil {
+				return result, err
+			}
+		}
 		if err = f.parents(filepath.Dir(target), true); err != nil {
 			return result, err
 		}

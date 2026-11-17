@@ -1,12 +1,8 @@
 {
   "name": "claude-desktop-tweaks",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "Font, theme, and text direction settings for Claude Desktop",
   "type": "commonjs",
-  "main": "bin/claude-desktop-tweaks.cjs",
-  "bin": {
-    "claude-desktop-tweaks": "bin/claude-desktop-tweaks.cjs"
-  },
   "scripts": {
     "test": "node --test test/*.test.cjs",
     "build:fonts": "node scripts/build-fonts.cjs",
@@ -23,42 +19,11 @@
   },
   "author": "Saeid Sisakhti",
   "license": "MIT",
-  "keywords": [
-    "claude",
-    "desktop",
-    "tweaks",
-    "persian",
-    "rtl",
-    "estedad",
-    "nord",
-    "hammerspoon"
-  ],
   "engines": {
     "node": ">=22.12.0"
-  },
-  "dependencies": {
-    "terser": "5.51.2"
   },
   "devDependencies": {
     "linkedom": "0.18.15"
   },
-  "files": [
-    "bin",
-    "lib",
-    "integrations",
-    "scripts/setup.cjs",
-    "scripts/build-fonts.cjs",
-    "scripts/build-extension.cjs",
-    "scripts/extension-setup.cjs",
-    "assets/estedad",
-    "assets/nord/LICENSE",
-    "README.md",
-    "CHANGELOG.md",
-    "docs",
-    "LICENSE",
-    "NOTICE.md",
-    "CLAUDE.md",
-    "assets/vazirmatn",
-    "assets/gruvbox"
-  ]
+  "private": true
 }

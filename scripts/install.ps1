@@ -200,7 +200,7 @@ function Invoke-ClaudeTweaksInstall([string]$Release, [bool]$SkipLaunch) {
     Write-DownloadProgress 'Verifying download...'
     $target = Install-SettingsBinary ([Environment]::GetFolderPath('UserProfile')) ([Environment]::GetFolderPath('LocalApplicationData')) $Release $binary $checksums
     Close-DownloadProgress
-    Write-Host 'Download verified. No Node.js or Go installation is needed.'
+    Write-Host 'Download verified.'
     Write-Host "Settings command: & '$($target.Replace("'","''"))'"
     if (-not $SkipLaunch) { & $target; if ($LASTEXITCODE -ne 0) { throw 'Setup did not finish. Review the message above.' } }
 }

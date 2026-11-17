@@ -8,11 +8,15 @@ import (
 )
 
 type Status struct {
-	Platform           string   `json:"platform"`
-	ClaudeInstalled    bool     `json:"claudeInstalled"`
-	ClaudeRunning      bool     `json:"claudeRunning"`
-	ExtensionInstalled bool     `json:"extensionInstalled"`
-	Features           Features `json:"features"`
+	Platform             string   `json:"platform"`
+	ClaudeInstalled      bool     `json:"claudeInstalled"`
+	ClaudeRunning        bool     `json:"claudeRunning"`
+	ExtensionInstalled   bool     `json:"extensionInstalled"`
+	Features             Features `json:"features"`
+	InstallationDetected bool     `json:"installationDetected"`
+	InstalledVersion     string   `json:"installedVersion"`
+	AvailableVersion     string   `json:"availableVersion"`
+	UpdateAvailable      bool     `json:"updateAvailable"`
 }
 
 func (i *Installer) claudePath() string {
@@ -28,6 +32,13 @@ func (i *Installer) claudePath() string {
 	return ""
 }
 func (i *Installer) Check() (Status, error) {
+	s, e := i.checkPlatform()
+	if e != nil {
+		return s, e
+	}
+	return i.versionStatus(s)
+}
+func (i *Installer) checkPlatform() (Status, error) {
 	if i.Platform == "windows" {
 		return i.checkWindows()
 	}
