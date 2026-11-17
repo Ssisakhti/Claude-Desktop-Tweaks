@@ -244,3 +244,8 @@ func TestMigrationPreservesBlankLineAfterCRLFBlock(t *testing.T) {
 		t.Fatalf("unrelated whitespace changed: %q %v", got, e)
 	}
 }
+
+func TestMacInstalledVersionAndSavedChoices(t *testing.T) {
+	i, _ := fixture(t)
+	versionFixtureChecks(t, i)
+}

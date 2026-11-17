@@ -86,10 +86,6 @@ func versionFixtureChecks(t *testing.T, i *Installer) {
 		t.Fatal("unowned version trusted", string(b))
 	}
 }
-func TestMacInstalledVersionAndSavedChoices(t *testing.T) {
-	i, _ := fixture(t)
-	versionFixtureChecks(t, i)
-}
 func TestWindowsInstalledVersionAndSavedChoices(t *testing.T) {
 	versionFixtureChecks(t, windowsFixture(t))
 }
