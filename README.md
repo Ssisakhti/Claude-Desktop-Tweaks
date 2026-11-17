@@ -32,6 +32,21 @@ For a new installation, follow **Font → Theme → Direction → Apply**. For a
 
 Save your work and quit Claude before applying. If Claude is open, setup keeps your choices and shows **Check again** and **Back**. Open Claude normally when setup finishes.
 
+## Installer preview
+
+Review saved choices, see installed and available versions, and update from one screen.
+
+<img src="docs/images/installer-settings.png" alt="Installer settings showing independent font, theme, and direction choices, installed and available versions, and the Update action" width="760">
+
+<details>
+<summary>Theme selection and preview</summary>
+
+Preview Nord or Gruvbox Dark before applying it to Claude.
+
+<img src="docs/images/installer-theme-preview.png" alt="Theme selection with Gruvbox Dark selected and its color preview visible" width="760">
+
+</details>
+
 ## Platforms
 
 | System | Processors | Status |

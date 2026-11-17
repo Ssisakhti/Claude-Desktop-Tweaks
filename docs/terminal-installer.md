@@ -15,6 +15,10 @@ New installations have four steps:
 
 The terminal uses its own font. The selected Persian font applies inside Claude.
 
+<img src="images/installer-font-selection.png" alt="Font selection with Estedad, Vazirmatn, and Use Claude default as separate choices" width="760">
+
+See the [settings and theme previews](../README.md#installer-preview) for the other screens.
+
 ## Versions and settings
 
 An existing installation opens saved settings. **Installed** shows the owned extension's version; **Available** shows the version bundled with this installer. Running the install command gets the latest published installer.
