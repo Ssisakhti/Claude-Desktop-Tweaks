@@ -3,6 +3,7 @@
 package installer
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -286,9 +287,12 @@ else:
     raise AssertionError('launch did not produce environment output')
 `, entry, output)
 		cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME=/wrong-config", "REACT_PROFILE=0", "CDT_LAUNCH_OUTPUT="+output)
-		b, e := cmd.CombinedOutput()
+		// Python warnings use stderr; only stdout contains the JSON result.
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		b, e := cmd.Output()
 		if e != nil {
-			t.Fatalf("desktop launch: %v: %s", e, b)
+			t.Fatalf("desktop launch: %v: %s: %s", e, b, stderr.String())
 		}
 		var values []string
 		if e := json.Unmarshal(b, &values); e != nil || len(values) != 2 || values[0] != i.ConfigHome || values[1] != "1" {

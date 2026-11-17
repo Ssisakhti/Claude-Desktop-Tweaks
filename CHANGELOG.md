@@ -1,16 +1,12 @@
 # Release information
 
-## 1.5.3 (unreleased)
+## 1.5.3
 
-Document that Claude-3p deployments are unsupported. Remove the experimental deployment detection and styling prototypes. The terminal appearance and version-display fixes remain included.
-
-## 1.5.2 (unreleased)
+Claude-3p deployments are not supported. The guides explain this limit. Experimental deployment detection and styling prototypes are not included.
 
 Windows profile discovery no longer checks permissions on unused search paths without a profile marker. Selected profiles still require the existing ownership, permission, and reparse-point checks. Directory errors identify the relative path without including the user's home path.
 
 The installer paints the full terminal with explicit backgrounds, including step separators, and wraps long error text. Automated checks cover every screen at compact and wide sizes. A synthetic preview was checked; live Windows rendering remains unverified.
-
-## 1.5.1 (unreleased)
 
 Windows setup detects initialized modern, roaming, and MSIX virtualized profiles instead of always choosing one fixed directory. It rejects empty or ambiguous profiles. Linux menu launches use the installation's configuration directory and cannot bypass their environment through D-Bus activation.
 
