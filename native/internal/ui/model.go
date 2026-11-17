@@ -152,6 +152,11 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if m.exitPending {
 			return m, tea.Quit
 		}
+		if m.status.Platform == "windows" {
+			// Repaint the terminal after replacing the progress screen. Legacy
+			// Windows Console can retain cells from incremental redraws.
+			return m, tea.ClearScreen
+		}
 		return m, nil
 	case downloaded:
 		m.err = msg.err

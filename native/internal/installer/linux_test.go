@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -195,6 +196,141 @@ func TestLinuxDesktopActionsAndConflictingCommands(t *testing.T) {
 	os.WriteFile(p, []byte("[Desktop Entry]\nExec=/usr/bin/claude-desktop %U\n[Desktop Action NewChat]\nExec=other-app\n"), 0644)
 	if _, e := i.Install(DefaultFeatures()); e == nil {
 		t.Fatal("unknown vendor command accepted")
+	}
+}
+
+func TestLinuxLauncherCarriesTheInstalledConfigDirectory(t *testing.T) {
+	i := linuxFixture(t)
+	i.ConfigHome = filepath.Join(i.Home, "custom config")
+	if _, e := i.Install(DefaultFeatures()); e != nil {
+		t.Fatal(e)
+	}
+	data, e := os.ReadFile(i.linuxLauncher())
+	if e != nil {
+		t.Fatal(e)
+	}
+	want := `"XDG_CONFIG_HOME=` + i.ConfigHome + `"`
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "Exec=") && !strings.Contains(line, want) {
+			t.Fatal("desktop launch can use a different profile from the installed extension", line)
+		}
+	}
+}
+
+func TestLinuxLauncherDoesNotBypassItsEnvironmentWithDBus(t *testing.T) {
+	i := linuxFixture(t)
+	path := i.systemPath("usr/share/applications/com.anthropic.Claude.desktop")
+	vendor := []byte("[Desktop Entry]\nName=Claude\nType=Application\nDBusActivatable=true\nExec=claude-desktop %U\n")
+	if e := os.WriteFile(path, vendor, 0644); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := i.Install(DefaultFeatures()); e != nil {
+		t.Fatal(e)
+	}
+	data, e := os.ReadFile(i.linuxLauncher())
+	if e != nil {
+		t.Fatal(e)
+	}
+	if strings.Contains(string(data), "DBusActivatable=true") {
+		t.Fatal("desktop can bypass REACT_PROFILE by using D-Bus activation")
+	}
+	unchanged, e := os.ReadFile(path)
+	if e != nil || string(unchanged) != string(vendor) {
+		t.Fatal("vendor entry changed", e)
+	}
+}
+
+func TestLinuxDesktopLaunchEnvironment(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("requires a Linux desktop entry implementation")
+	}
+	python := "/usr/bin/python3"
+	if e := exec.Command(python, "-c", "from gi.repository import Gio").Run(); e != nil {
+		t.Skip("requires system Python with PyGObject")
+	}
+	for _, name := range []string{"custom config", "quote\" dollar$ tick` percent% slash\\ tab\t"} {
+		i := linuxFixture(t)
+		i.ConfigHome = filepath.Join(i.Home, name)
+		data, e := i.linuxDesktop()
+		if e != nil {
+			t.Fatal(e)
+		}
+		probe := filepath.Join(i.Home, "probe")
+		output := filepath.Join(i.Home, "output")
+		if e := os.WriteFile(probe, []byte("#!/bin/sh\nprintf '%s\\n' \"$XDG_CONFIG_HOME\" \"$REACT_PROFILE\" > \"$CDT_LAUNCH_OUTPUT\"\n"), 0700); e != nil {
+			t.Fatal(e)
+		}
+		// Replace only the executable in this temporary entry. Gio still parses
+		// the generated environment arguments and selects the activation route.
+		data = []byte(strings.ReplaceAll(string(data), "/usr/bin/claude-desktop", probe))
+		entry := filepath.Join(i.Home, "probe.desktop")
+		if e := os.WriteFile(entry, data, 0600); e != nil {
+			t.Fatal(e)
+		}
+		cmd := exec.Command(python, "-c", `
+import gi, json, pathlib, sys, time
+gi.require_version('Gio', '2.0')
+from gi.repository import Gio
+app = Gio.DesktopAppInfo.new_from_filename(sys.argv[1])
+assert app is not None, 'invalid desktop entry'
+assert app.launch([], None), 'launch failed'
+output = pathlib.Path(sys.argv[2])
+for _ in range(100):
+    if output.exists():
+        lines = output.read_text().splitlines()
+        if len(lines) == 2:
+            print(json.dumps(lines))
+            break
+    time.sleep(0.05)
+else:
+    raise AssertionError('launch did not produce environment output')
+`, entry, output)
+		cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME=/wrong-config", "REACT_PROFILE=0", "CDT_LAUNCH_OUTPUT="+output)
+		b, e := cmd.CombinedOutput()
+		if e != nil {
+			t.Fatalf("desktop launch: %v: %s", e, b)
+		}
+		var values []string
+		if e := json.Unmarshal(b, &values); e != nil || len(values) != 2 || values[0] != i.ConfigHome || values[1] != "1" {
+			t.Fatalf("wrong launch environment: %s (%v)", b, e)
+		}
+	}
+}
+
+func TestWindowsProfileDiscoveryIgnoresUnsafeUnusedCandidateParents(t *testing.T) {
+	i, system := windowsFixtureSystem(t)
+	// The initialized modern profile is valid. An unrelated package directory
+	// must not become a prerequisite merely because it is a search candidate.
+	parent := filepath.Join(system.LocalAppData, "Packages")
+	if e := os.MkdirAll(parent, 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.Chmod(parent, 0777); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := i.Install(DefaultFeatures()); e != nil {
+		t.Fatal("unused candidate permissions blocked a valid profile", e)
+	}
+	if _, e := os.Stat(filepath.Join(system.LocalAppData, "Claude-Data", "claude_pzs8sxrjxfjjc", "extensions", ExtensionID, "manifest.json")); e != nil {
+		t.Fatal("extension missing from the valid profile", e)
+	}
+}
+
+func TestWindowsProfileDiscoveryStillRejectsUnsafeSelectedParents(t *testing.T) {
+	i, system := windowsFixtureSystem(t)
+	parent := filepath.Join(system.LocalAppData, "Claude-Data")
+	if e := os.Chmod(parent, 0777); e != nil {
+		t.Fatal(e)
+	}
+	_, e := i.Install(DefaultFeatures())
+	if e == nil {
+		t.Fatal("unsafe selected profile was accepted")
+	}
+	if !strings.Contains(e.Error(), "AppData/Local/Claude-Data") || strings.Contains(e.Error(), i.Home) {
+		t.Fatal("error must identify the relative directory without exposing the home path", e)
+	}
+	if _, e := os.Stat(filepath.Join(parent, "claude_pzs8sxrjxfjjc", "extensions")); !os.IsNotExist(e) {
+		t.Fatal("extension created in an unsafe profile", e)
 	}
 }
 

@@ -45,7 +45,11 @@ The installer never quits Claude for you.
 
 For a direct Linux terminal launch, use `env REACT_PROFILE=1 claude-desktop` to load the extension.
 
-On Windows, open Claude normally after setup. The installer changes only the current user's `REACT_PROFILE` environment entry and notifies the desktop. Existing shortcuts stay unchanged. The entry can also be inherited by other newly opened programs. Keep the receipt so you can restore its exact value and type when removing the tweaks.
+On Windows, open Claude normally after setup. The installer changes only the current user's `REACT_PROFILE` environment entry and notifies the desktop. Existing shortcuts stay unchanged. An existing terminal or app launcher can still hold its old environment; if a full Claude restart has no effect, sign out of Windows and sign in again before opening Claude. The entry can also be inherited by other newly opened programs. Keep the receipt so you can restore its exact value and type when removing the tweaks.
+
+On Linux, login-time autostart and direct executable launches can bypass the applications-menu entry. Quit Claude completely first, including any tray process, then open it from the applications menu. The owned entry passes the installation's configuration directory explicitly. This does not change Claude's autostart files.
+
+**Claude-3p deployments are not supported.** Do not use these setup steps for Claude-3p. The installer does not detect or configure this deployment. Copying the extension to its profile does not enable it. See [the deployment limit](extension.md#claude-3p-deployment-limit).
 
 ## Update or change settings
 
@@ -72,10 +76,10 @@ Quit Claude before applying, then reopen it. Selecting all options off disables 
 ### Windows
 
 - Settings, receipt, and executable releases: `%LOCALAPPDATA%\Claude Desktop Tweaks\`
-- Extension: `%LOCALAPPDATA%\Claude-Data\claude_pzs8sxrjxfjjc\extensions\fmkadmapgofadopljbjfkapdkoienihi\`
+- Extension: `extensions\fmkadmapgofadopljbjfkapdkoienihi\` inside the detected standard Claude profile
 - Startup setting: the current user's `REACT_PROFILE` entry in `HKEY_CURRENT_USER\Environment`
 
-The standard Claude profile must exist. If prompted, open Claude once, quit it, and return to setup. Custom Claude profiles and application-data locations outside your user profile are not supported.
+The standard Claude profile must contain `Local State`. Setup checks the modern local-data, legacy roaming, and MSIX virtualized roaming locations described in [extension behavior](extension.md#startup-on-windows). If more than one is initialized, setup stops instead of choosing an uncertain destination. If prompted, open Claude once, quit it, and return to setup. Custom Claude profiles and application-data locations outside your user profile are not supported.
 
 On all systems, the receipt is named `extension-startup.json`. Keep it and the reported backups until you are sure you no longer need them.
 

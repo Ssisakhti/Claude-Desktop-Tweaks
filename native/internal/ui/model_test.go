@@ -4,7 +4,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"errors"
 	"github.com/Ssisakhti/Claude-Desktop-Tweaks/native/internal/installer"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -233,6 +235,56 @@ func TestWindowsInterfaceUsesItsLauncherAndConsent(t *testing.T) {
 	m.screen = "download"
 	if text := ansi.Strip(m.View().Content); !strings.Contains(text, "Claude Setup") || strings.Contains(text, "Applications folder") {
 		t.Fatal("wrong prerequisite step")
+	}
+}
+
+func TestWindowsCompletionRequestsAFullRepaint(t *testing.T) {
+	for _, failure := range []error{nil, errors.New("installation failed")} {
+		m, _ := ready()
+		m.status.Platform = "windows"
+		m.screen = "working"
+		next, cmd := m.Update(installed{result: installer.Result{Changed: true}, err: failure})
+		if cmd == nil || reflect.TypeOf(cmd()) != reflect.TypeOf(tea.ClearScreen()) {
+			t.Fatal("completion relied on incremental rendering in Windows Console")
+		}
+		if next.(Model).screen == "working" {
+			t.Fatal("completion did not leave the progress screen")
+		}
+	}
+}
+
+func TestViewsPaintTheWholeTerminal(t *testing.T) {
+	m, _ := ready()
+	m.err = errors.New("installation directory is unowned, writable by others, or symbolic: AppData/Local/Packages")
+	for _, screen := range []string{"loading", "font", "theme", "direction", "settings", "review", "working", "done", "error", "blocked", "download"} {
+		m.screen = screen
+		for _, size := range [][2]int{{40, 16}, {60, 22}, {100, 32}, {140, 40}} {
+			m.width, m.height = size[0], size[1]
+			view := m.View().Content
+			lines := strings.Split(view, "\n")
+			if len(lines) != size[1] {
+				t.Fatalf("canvas height %d, want %d", len(lines), size[1])
+			}
+			for _, line := range lines {
+				if ansi.StringWidth(line) != size[0] {
+					t.Fatal("terminal row was not fully painted", ansi.StringWidth(line), size)
+				}
+			}
+			for y, line := range uv.NewStyledString(view).Lines(ansi.GraphemeWidth) {
+				for x, cell := range line {
+					if cell.Width == 0 {
+						continue
+					}
+					if cell.Style.Bg == nil {
+						t.Fatalf("transparent cell at %d,%d leaves the terminal's black background visible", x, y)
+					}
+				}
+			}
+			plain := ansi.Strip(view)
+			if screen == "error" && size[0] >= 60 && (!strings.Contains(plain, "AppData/Local/Packages") || !strings.Contains(plain, "Enter Retry")) {
+				t.Fatal("error details or controls were clipped", plain)
+			}
+		}
 	}
 }
 

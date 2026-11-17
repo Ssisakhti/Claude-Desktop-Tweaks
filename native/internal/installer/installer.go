@@ -238,7 +238,7 @@ func (f *safeFS) parents(p string, create bool) error {
 			return err
 		}
 		if !ownedDir(s, filepath.Join(f.home, current)) {
-			return errors.New("installation directory is unowned, writable by others, or symbolic")
+			return fmt.Errorf("installation directory is unowned, writable by others, or symbolic: %s", filepath.ToSlash(current))
 		}
 	}
 	return nil

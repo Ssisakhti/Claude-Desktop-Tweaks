@@ -28,9 +28,9 @@ Open PowerShell and run:
 
 Both commands get the latest published installer and verify the download.
 
-For a new installation, follow **Font → Theme → Direction → Apply**. For an existing installation, the interface shows **Installed** and **Available** versions. Select **Update** to review and update with your saved choices. Select **Edit** to change an individual setting.
+For a new installation, follow **Font → Theme → Direction → Apply**. For an existing installation, the interface shows the installed version and **Up to date**, or an **Available** version when an update is needed. Select **Update** to review and update with your saved choices. Select **Edit** to change an individual setting.
 
-Save your work and quit Claude before applying. If Claude is open, setup keeps your choices and shows **Check again** and **Back**. Open Claude normally when setup finishes.
+Save your work and quit Claude completely before applying, including its tray icon. If Claude is open, setup keeps your choices and shows **Check again** and **Back**. After setup, open Claude normally on macOS and Windows; use the applications menu on Linux.
 
 ## Installer preview
 
@@ -56,6 +56,8 @@ Preview Nord or Gruvbox Dark before applying it to Claude.
 | Windows 11 | x64 | Experimental; live Claude display checks are pending |
 
 Use the official Claude Desktop app. Linux requires the Ubuntu or Debian package. Windows requires the x64 MSIX package and its standard user profile.
+
+**Claude-3p is not supported.** That deployment serves its interface locally at `app://localhost`; the inspected Claude 5.11492.5 build does not allow Chrome extensions on that protocol. An extension copied into `Claude-Data` does not style an app running from `Claude-3p`. See [deployment limits](docs/extension.md#claude-3p-deployment-limit).
 
 The extension loads fonts locally. It preserves message text, code, table column order, and control layout. It does not send conversation data or change Claude's application files or security settings.
 

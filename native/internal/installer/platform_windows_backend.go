@@ -25,6 +25,7 @@ type windowsSystem struct {
 	RoamingAppData   string          `json:"roamingAppData"`
 	Running          bool            `json:"running"`
 	Package          *windowsPackage `json:"package"`
+	profile          string
 }
 
 const windowsDiscovery = `# CDT_DISCOVERY
@@ -99,11 +100,72 @@ func (i *Installer) discoverWindows() error {
 			return errors.New("Windows application-data directories must be inside your user profile")
 		}
 	}
+	profile, e := i.findWindowsProfile(system)
+	if e != nil {
+		return e
+	}
+	if i.windows.profile != "" && i.windows.profile != profile {
+		return errors.New("Claude's user profile changed during setup; close settings and retry")
+	}
+	system.profile = profile
 	i.windows = system
 	return nil
 }
 func (i *Installer) windowsProfile() string {
+	if i.windows.profile != "" {
+		return i.windows.profile
+	}
 	return filepath.Join(i.windows.LocalAppData, "Claude-Data", "claude_pzs8sxrjxfjjc")
+}
+
+// A package family identifies the app, not the profile used by every release.
+// Inspect markers only; never read sign-in, settings, or conversation data.
+func (i *Installer) findWindowsProfile(system windowsSystem) (string, error) {
+	if system.Package == nil {
+		return "", nil
+	}
+	candidates := []string{filepath.Join(system.LocalAppData, "Claude-Data", "claude_pzs8sxrjxfjjc")}
+	if system.RoamingAppData != "" {
+		candidates = append(candidates, filepath.Join(system.RoamingAppData, "Claude"))
+	}
+	candidates = append(candidates, filepath.Join(system.LocalAppData, "Packages", "Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming", "Claude"))
+	f, e := i.files()
+	if e != nil {
+		return "", e
+	}
+	defer f.root.Close()
+	selected := ""
+	for _, profile := range candidates {
+		// A redirected roaming directory is not required by a modern local
+		// profile. External profiles remain unsupported and are not inspected.
+		if _, e := f.rel(profile); e != nil {
+			continue
+		}
+		marker := filepath.Join(profile, "Local State")
+		info, e := f.stat(marker)
+		if e != nil {
+			return "", e
+		}
+		if info == nil {
+			continue
+		}
+		// Missing candidates are not installation paths. Check traversal and
+		// permissions only after finding a marker, before trusting its profile.
+		if e := f.parents(profile, false); e != nil {
+			return "", e
+		}
+		if !info.Mode().IsRegular() || !owned(info, marker) {
+			return "", errors.New("Claude's profile marker is not a regular user-owned file")
+		}
+		if selected != "" {
+			return "", errors.New("more than one initialized Claude user profile was found; setup cannot safely choose the extension destination")
+		}
+		selected = profile
+	}
+	if selected != "" {
+		return selected, nil
+	}
+	return "", errors.New("open Claude once, then quit it and retry; no initialized standard Claude profile was found")
 }
 func (i *Installer) windowsRunning() (bool, error) {
 	if e := i.discoverWindows(); e != nil {

@@ -81,6 +81,43 @@ func TestWindowsRejectsWritableInstallationHome(t *testing.T) {
 		t.Fatal("a home writable by another account was accepted")
 	}
 }
+
+func TestWindowsOnlyValidatesInitializedProfileCandidatePermissions(t *testing.T) {
+	for _, initialized := range []bool{false, true} {
+		t.Run(fmt.Sprint(initialized), func(t *testing.T) {
+			i, system := windowsFixtureSystem(t)
+			parent := filepath.Join(system.LocalAppData, "Packages")
+			if e := os.MkdirAll(parent, 0700); e != nil {
+				t.Fatal(e)
+			}
+			if initialized {
+				profile := filepath.Join(parent, "Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming", "Claude")
+				if e := os.MkdirAll(profile, 0700); e != nil {
+					t.Fatal(e)
+				}
+				if e := os.WriteFile(filepath.Join(profile, "Local State"), []byte("{}"), 0600); e != nil {
+					t.Fatal(e)
+				}
+				if e := os.Remove(filepath.Join(system.LocalAppData, "Claude-Data", "claude_pzs8sxrjxfjjc", "Local State")); e != nil {
+					t.Fatal(e)
+				}
+			}
+			// Grant an unrelated Windows group write access in a temporary tree.
+			// An unused tree must be ignored; a selected one must remain unsafe.
+			cmd := exec.Command("icacls.exe", parent, "/grant", "*S-1-5-32-545:(OI)(CI)M")
+			if out, e := cmd.CombinedOutput(); e != nil {
+				t.Fatalf("ACL fixture: %v: %s", e, out)
+			}
+			_, e := i.Install(DefaultFeatures())
+			if initialized && e == nil {
+				t.Fatal("writable selected profile was accepted")
+			}
+			if !initialized && e != nil {
+				t.Fatal("unused candidate blocked installation", e)
+			}
+		})
+	}
+}
 func TestWindowsRejectsJunctionParent(t *testing.T) {
 	i := windowsFixture(t)
 	if _, e := i.Check(); e != nil {

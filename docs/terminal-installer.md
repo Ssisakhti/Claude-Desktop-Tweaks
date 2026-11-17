@@ -21,7 +21,7 @@ See the [settings and theme previews](../README.md#installer-preview) for the ot
 
 ## Versions and settings
 
-An existing installation opens saved settings. **Installed** shows the owned extension's version; **Available** shows the version bundled with this installer. Running the install command gets the latest published installer.
+An existing installation opens saved settings. **Installed** shows the owned extension's version. **Up to date** means it matches this installer; **Available** appears when an update is needed. Running the install command gets the latest published installer.
 
 **Update** reviews the update with your saved choices. If you edit a choice, the review shows **Update and apply changes**. A matching version shows **Up to date**. An installer cannot replace a newer installed version with an older one. Unreadable version metadata is shown as **Unknown**; unrecognized files are preserved.
 

@@ -17,9 +17,9 @@ var (
 	frost  = lip.Color("#88c0d0")
 	green  = lip.Color("#a3be8c")
 	red    = lip.Color("#bf616a")
-	text   = lip.NewStyle().Foreground(snow)
-	dim    = lip.NewStyle().Foreground(muted)
-	accent = lip.NewStyle().Foreground(frost).Bold(true)
+	text   = lip.NewStyle().Foreground(snow).Background(night)
+	dim    = lip.NewStyle().Foreground(muted).Background(night)
+	accent = lip.NewStyle().Foreground(frost).Background(night).Bold(true)
 )
 
 func safe(s string) string {
@@ -52,7 +52,7 @@ func (m Model) View() tea.View {
 		if m.screen == "discard" {
 			body = "Discard unsaved choices? [y/N]\n\nY Exit    Enter Keep editing"
 		}
-		v.Content = fit(body, w, h)
+		v.Content = text.Width(w).Height(h).Render(fit(body, w, h))
 		return v
 	}
 	width := min(w-4, 72)
@@ -68,7 +68,7 @@ func (m Model) View() tea.View {
 	}
 	padding := max(0, budget-len(strings.Split(body, "\n")))
 	content := header + "\n\n" + body + strings.Repeat("\n", padding) + "\n\n" + m.help()
-	v.Content = lip.NewStyle().Foreground(snow).Background(night).Padding(1, 2).Render(fit(content, width, h-2))
+	v.Content = text.Width(w).Height(h).Padding(1, 2).Render(fit(content, width, h-2))
 	return v
 }
 func (m Model) steps() string {
@@ -87,7 +87,7 @@ func (m Model) steps() string {
 			labels[i] = dim.Render(label)
 		}
 	}
-	return strings.Join(labels, "  ─  ")
+	return strings.Join(labels, dim.Render("  ─  "))
 }
 func (m Model) body(w, h int) string {
 	heading := func(title, sub string) string { return text.Bold(true).Render(title) + "\n" + dim.Width(w).Render(sub) }
@@ -197,7 +197,7 @@ func (m Model) body(w, h int) string {
 		if m.err != nil {
 			detail = safe(m.err.Error())
 		}
-		return heading("Setup needs attention", "Your choices are saved in this session.") + "\n\n" + lip.NewStyle().Foreground(red).Width(w).Render(detail) + "\n\n" + dim.Width(w).Render("Retry the check or go back to your choices.")
+		return heading("Setup needs attention", "Your choices are saved in this session.") + "\n\n" + text.Foreground(red).Width(w).Render(ansi.Wrap(detail, w, "")) + "\n\n" + dim.Width(w).Render("Retry the check or go back to your choices.")
 	case "discard":
 		return heading("Leave without applying?", "Installed preferences stay as they are.") + "\n\nDiscard unsaved choices? [y/N]"
 	case "download":
@@ -325,9 +325,9 @@ func (m Model) versionRows() string {
 	if m.status.UpdateAvailable {
 		available += " · Update available"
 	} else if m.status.NewerVersionInstalled() {
-		available += " · Newer version installed"
+		return dim.Render(fmt.Sprintf("  %-12s%s\n  Newer version installed", "Installed", installed))
 	} else if m.status.InstallationDetected {
-		available += " · Up to date"
+		return dim.Render(fmt.Sprintf("  %-12s%s · Up to date", "Installed", installed))
 	}
 	return dim.Render(fmt.Sprintf("  %-12s%s\n  %-12s%s", "Installed", installed, "Available", available))
 }

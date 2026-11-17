@@ -20,7 +20,7 @@ A Claude login item can start before the LaunchAgent. Login-time startup remains
 
 ## Startup on Linux
 
-An installer-owned desktop entry launches the official app with `REACT_PROFILE=1`. The value applies to that Claude process, not the whole desktop session. The system desktop entry stays unchanged.
+An installer-owned desktop entry launches the official app with `REACT_PROFILE=1` and the same `XDG_CONFIG_HOME` used during installation. It uses the entry's command rather than D-Bus activation. These environment values apply to that Claude process, not the whole desktop session. The system desktop entry stays unchanged.
 
 Open Claude from the applications menu or dock. For a direct terminal launch, use:
 
@@ -34,11 +34,23 @@ The extension uses Claude's standard user profile. Custom `CLAUDE_USER_DATA_DIR`
 
 Setup records the current user's `REACT_PROFILE` value and registry type, sets it to `1`, and sends Windows an environment-change notification. Open Claude normally. No shortcut or vendor file is replaced. Other newly opened programs can inherit this user environment value too.
 
-The profile is `%LOCALAPPDATA%\Claude-Data\claude_pzs8sxrjxfjjc\`. Custom profiles and other package families are not supported. Live MSIX startup and graphical behavior are not yet verified, so Windows support remains experimental.
+Setup finds an initialized profile by its `Local State` file in one of three standard locations: `%LOCALAPPDATA%\Claude-Data\claude_pzs8sxrjxfjjc\`, `%APPDATA%\Claude\`, or `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\`. It does not read the marker's contents. An empty folder is insufficient. If several locations have this marker, setup stops instead of guessing. Custom profiles and other package families are not supported. Live MSIX startup and graphical behavior are not yet verified, so Windows support remains experimental.
+
+An existing terminal or app launcher can keep its old environment. If the tweaks do not appear after a full Claude restart, sign out of Windows and sign in again, then open Claude from its normal icon. Setup does not sign you out or restart the desktop.
 
 See [removal instructions](installation.md#remove-on-windows) before changing or deleting the extension.
 
 ## Frames and content
+
+### Claude-3p deployment limit
+
+Claude-3p is the app's separate profile for third-party-provider deployments. It is not an alternate spelling of the standard Claude-Data profile. Runtime inspection on Windows showed `--user-data-dir` pointing to `%LOCALAPPDATA%\Claude-3p` while the extension was installed in the standard profile. A controlled launch loaded React Developer Tools instead of this extension.
+
+There is a second limit: the inspected official Claude 5.11492.5 archive serves third-party pages from `app://localhost`. Its `app` scheme enables standard, secure, fetch, and service-worker privileges, but does not set `allowExtensions`. That privilege defaults to false in [Electron's CustomScheme API](https://github.com/electron/electron/blob/main/docs/api/structures/custom-scheme.md). The extension's manifest and runtime scope also support HTTPS pages only. Moving the extension directory alone would not enable this UI.
+
+**Claude-3p is not supported.** The installer does not detect or configure this deployment. Do not use the standard-profile installation instructions for Claude-3p. No alternate launcher, extra window, or experimental styling route is provided.
+
+This project does not change Claude's archive, provider selection, protocol privileges, or security settings to bypass the limit. Existing installation receipts prove file installation, not successful display in Claude-3p.
 
 The manifest loads content scripts in supported chat and artifact frames, including nested document frames. The runtime checks each frame's origin and rejects unsupported pages. Authentication and API pages are excluded.
 

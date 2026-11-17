@@ -140,6 +140,14 @@ func (i *Installer) checkLinux() (Status, error) {
 }
 
 func (i *Installer) linuxDesktop() ([]byte, error) {
+	config := i.linuxConfig()
+	if strings.ContainsAny(config, "\x00\n\r") {
+		return nil, errors.New("the configuration directory cannot contain line breaks or NUL characters")
+	}
+	// Desktop entries decode string escapes before parsing Exec arguments.
+	argument := "XDG_CONFIG_HOME=" + config
+	argument = strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "`", "\\`", "$", "\\$", "%", "%%").Replace(argument)
+	argument = `"` + strings.ReplaceAll(argument, "\\", "\\\\") + `"`
 	b, e := os.ReadFile(i.systemPath("usr/share/applications/com.anthropic.Claude.desktop"))
 	if e != nil {
 		return nil, e
@@ -150,6 +158,9 @@ func (i *Installer) linuxDesktop() ([]byte, error) {
 	lines := strings.Split(string(b), "\n")
 	count := 0
 	for n, line := range lines {
+		if strings.HasPrefix(line, "DBusActivatable=") {
+			lines[n] = "DBusActivatable=false"
+		}
 		if !strings.HasPrefix(line, "Exec=") {
 			continue
 		}
@@ -162,7 +173,7 @@ func (i *Installer) linuxDesktop() ([]byte, error) {
 		} else {
 			return nil, errors.New("unsupported Claude desktop launch command")
 		}
-		lines[n] = "Exec=/usr/bin/env REACT_PROFILE=1 /usr/bin/claude-desktop" + tail
+		lines[n] = "Exec=/usr/bin/env REACT_PROFILE=1 " + argument + " /usr/bin/claude-desktop" + tail
 		count++
 	}
 	if count == 0 || !bytes.Contains(b, []byte("[Desktop Entry]")) {

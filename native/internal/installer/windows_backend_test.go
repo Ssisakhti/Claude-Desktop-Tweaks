@@ -19,6 +19,7 @@ func windowsFixtureSystem(t *testing.T) (*Installer, *windowsSystem) {
 	root := t.TempDir()
 	profile := filepath.Join(home, "AppData/Local/Claude-Data/claude_pzs8sxrjxfjjc")
 	os.MkdirAll(profile, 0700)
+	os.WriteFile(filepath.Join(profile, "Local State"), []byte("{}"), 0600)
 	os.MkdirAll(filepath.Join(root, "app/resources"), 0700)
 	os.WriteFile(filepath.Join(root, "app/claude.exe"), []byte("vendor executable"), 0600)
 	files := map[string]any{"main.js": map[string]any{"offset": "0", "size": len(windowsTestHook)}}
@@ -54,6 +55,98 @@ func windowsFixtureSystem(t *testing.T) (*Installer, *windowsSystem) {
 }
 
 const windowsTestHook = `REACT_PROFILE loadReactDevTools fmkadmapgofadopljbjfkapdkoienihi loadExtension userData extensions`
+
+func TestWindowsInstallsIntoTheExistingProfile(t *testing.T) {
+	for _, kind := range []string{"modern", "roaming", "virtualized"} {
+		t.Run(kind, func(t *testing.T) {
+			i, system := windowsFixtureSystem(t)
+			os.Remove(filepath.Join(system.LocalAppData, "Claude-Data", "claude_pzs8sxrjxfjjc", "Local State"))
+			profile := filepath.Join(system.LocalAppData, "Claude-Data", "claude_pzs8sxrjxfjjc")
+			if kind == "roaming" {
+				profile = filepath.Join(system.RoamingAppData, "Claude")
+			} else if kind == "virtualized" {
+				profile = filepath.Join(system.LocalAppData, "Packages", "Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming", "Claude")
+			}
+			if e := os.MkdirAll(profile, 0700); e != nil {
+				t.Fatal(e)
+			}
+			if e := os.WriteFile(filepath.Join(profile, "Local State"), []byte("{}"), 0600); e != nil {
+				t.Fatal(e)
+			}
+			if _, e := i.Install(DefaultFeatures()); e != nil {
+				t.Fatal(e)
+			}
+			if _, e := os.Stat(filepath.Join(profile, "extensions", ExtensionID, "manifest.json")); e != nil {
+				t.Fatal("extension did not reach Claude's existing profile", e)
+			}
+		})
+	}
+}
+
+func TestWindowsRejectsAmbiguousProfilesWithoutWriting(t *testing.T) {
+	i, system := windowsFixtureSystem(t)
+	for _, profile := range []string{
+		filepath.Join(system.LocalAppData, "Claude-Data", "claude_pzs8sxrjxfjjc"),
+		filepath.Join(system.RoamingAppData, "Claude"),
+	} {
+		if e := os.MkdirAll(profile, 0700); e != nil {
+			t.Fatal(e)
+		}
+		if e := os.WriteFile(filepath.Join(profile, "Local State"), []byte("{}"), 0600); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if _, e := i.Install(DefaultFeatures()); e == nil {
+		t.Fatal("ambiguous profile was silently selected")
+	}
+	if _, e := os.Stat(filepath.Join(system.LocalAppData, "Claude Desktop Tweaks", "extension-startup.json")); !os.IsNotExist(e) {
+		t.Fatal("ambiguous discovery wrote state", e)
+	}
+}
+
+func TestWindowsDoesNotTrustAnEmptyProfileDirectory(t *testing.T) {
+	i, system := windowsFixtureSystem(t)
+	if e := os.Remove(filepath.Join(system.LocalAppData, "Claude-Data", "claude_pzs8sxrjxfjjc", "Local State")); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := i.Install(DefaultFeatures()); e == nil {
+		t.Fatal("an empty directory was accepted as Claude's active profile")
+	}
+}
+
+func TestWindowsModernProfileDoesNotRequireLocalRoamingData(t *testing.T) {
+	i, system := windowsFixtureSystem(t)
+	system.RoamingAppData = t.TempDir()
+	if _, e := i.Install(DefaultFeatures()); e != nil {
+		t.Fatal("an unused redirected roaming directory blocked the modern profile", e)
+	}
+	if _, e := os.Stat(filepath.Join(system.LocalAppData, "Claude-Data", "claude_pzs8sxrjxfjjc", "extensions", ExtensionID, "manifest.json")); e != nil {
+		t.Fatal("modern extension missing", e)
+	}
+}
+
+func TestWindowsCanDiscoverFirstProfileAfterClaudeInstallation(t *testing.T) {
+	i, system := windowsFixtureSystem(t)
+	app := system.Package
+	system.Package = nil
+	if _, e := i.Check(); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.Remove(filepath.Join(system.LocalAppData, "Claude-Data", "claude_pzs8sxrjxfjjc", "Local State")); e != nil {
+		t.Fatal(e)
+	}
+	profile := filepath.Join(system.RoamingAppData, "Claude")
+	if e := os.MkdirAll(profile, 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(profile, "Local State"), []byte("{}"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	system.Package = app
+	if _, e := i.Install(DefaultFeatures()); e != nil {
+		t.Fatal("discovery pinned an uninitialized profile before Claude was installed", e)
+	}
+}
 
 func TestWindowsIndependentSettingsAndRepeat(t *testing.T) {
 	for bits := 0; bits < 8; bits++ {

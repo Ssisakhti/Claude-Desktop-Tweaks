@@ -245,3 +245,22 @@ func TestNewerInstalledVersionCannotBeAppliedFromTheInterface(t *testing.T) {
 		t.Fatal("older installer allowed apply")
 	}
 }
+
+func TestCurrentVersionDoesNotAdvertiseAnUpdate(t *testing.T) {
+	for _, version := range []string{"1.5.0", "1.5.0.0"} {
+		m, _ := ready()
+		m.status.InstalledVersion = version
+		m.status.AvailableVersion = "1.5.0"
+		m.status.InstallationDetected = true
+		for _, screen := range []string{"settings", "review"} {
+			m.screen = screen
+			view := ansi.Strip(m.View().Content)
+			if !strings.Contains(view, version) || !strings.Contains(view, "Up to date") {
+				t.Fatal("current version status missing", view)
+			}
+			if strings.Contains(view, "Available") || strings.Contains(view, "[ Update ]") {
+				t.Fatal("current version advertised as an update", view)
+			}
+		}
+	}
+}
