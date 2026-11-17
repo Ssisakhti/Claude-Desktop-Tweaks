@@ -34,6 +34,7 @@ jobs:
           ./test/powershell-platform.ps1
           ./test/bootstrap-windows.ps1
           ./test/download-progress.ps1
+          ./scripts/install.ps1 -NoLaunch
       - name: Smoke-test Windows executable
         if: runner.os == 'Windows'
         shell: powershell

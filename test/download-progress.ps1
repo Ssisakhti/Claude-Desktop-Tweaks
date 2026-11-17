@@ -33,3 +33,13 @@ foreach($stalled in @($true,$false)) {
  try {Read-ReleaseStream $stream 0 65536 'Test timeout' 0.05 0.05|Out-Null} catch {$rejected=$true} finally {$stream.Dispose()}
  if (-not $rejected -or $clock.Elapsed.TotalSeconds -gt 3) {throw 'Download deadline was not enforced.'}
 }
+$writer=(Get-Command Write-DownloadProgress).ScriptBlock
+$script:LastFrame=$null
+function Write-DownloadProgress {
+ param($Phase,$Received,$Total,$Seconds,[switch]$Force)
+ $script:LastFrame=@{Received=$Received;Total=$Total;Force=[bool]$Force}
+}
+$stream=[IO.MemoryStream]::new([byte[]]@(1,2,3,4))
+try {Read-ReleaseStream $stream 4 16 'Downloading installer'|Out-Null} finally {$stream.Dispose()}
+if (-not $script:LastFrame.Force -or $script:LastFrame.Received -ne 4) {throw 'The completed download frame was not shown.'}
+Set-Item Function:Write-DownloadProgress $writer

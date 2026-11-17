@@ -20,9 +20,9 @@ function Get-DownloadProgressLines([string]$Phase, [long]$Received, [long]$Total
         if ($Phase -like 'Verifying*') {$bar='Checking SHA-256 integrity.'}
         return @($Phase,$bar,$amount)
     }
-    return @($Phase, $bar, "$amount · $speed")
+    return @($Phase, $bar, "$amount | $speed")
 }
-function Write-DownloadProgress([string]$Phase, [long]$Received = 0, [long]$Total = 0, [double]$Seconds = 0) {
+function Write-DownloadProgress([string]$Phase, [long]$Received = 0, [long]$Total = 0, [double]$Seconds = 0, [switch]$Force) {
     if ($null -eq $script:DownloadDisplay) {
         $interactive = $false
         try { $interactive = -not [Console]::IsOutputRedirected -and [Console]::WindowWidth -ge 60 } catch {}
@@ -40,7 +40,7 @@ function Write-DownloadProgress([string]$Phase, [long]$Received = 0, [long]$Tota
         if ($display.LastPhase -ne $Phase) { Write-Host $Phase; $display.LastPhase=$Phase }
         return
     }
-    if ($display.LastPhase -eq $Phase -and ((Get-Date) - $display.LastPaint).TotalMilliseconds -lt 150) { return }
+    if (-not $Force -and $display.LastPhase -eq $Phase -and ((Get-Date) - $display.LastPaint).TotalMilliseconds -lt 150) { return }
     $display.LastPhase=$Phase; $display.LastPaint=Get-Date
     $lines = @(Get-DownloadProgressLines $Phase $Received $Total $Seconds $display.Frame)
     $display.Frame++
@@ -97,6 +97,7 @@ function Read-ReleaseStream([IO.Stream]$Stream, [long]$Total, [int]$Limit, [stri
             Write-DownloadProgress $Phase $memory.Length $Total $watch.Elapsed.TotalSeconds
         }
         if ($Total -gt 0 -and $memory.Length -ne $Total) { throw 'Download was incomplete. Run the install command again.' }
+        Write-DownloadProgress $Phase $memory.Length $Total $watch.Elapsed.TotalSeconds -Force
         return ,$memory.ToArray()
     } finally { $memory.Dispose(); $watch.Stop() }
 }
@@ -192,9 +193,9 @@ function Invoke-ClaudeTweaksInstall([string]$Release, [bool]$SkipLaunch) {
         $Release = $metadata.tag_name
     }
     if ($Release -notmatch '^v[0-9][A-Za-z0-9._-]*$' -or $Release.Contains('..')) { throw 'Invalid release version.' }
-    Write-DownloadProgress "Downloading installer · $Release"
+    Write-DownloadProgress "Downloading installer | $Release"
     $base = "$repository/releases/download/$Release"
-    $binary = Get-ReleaseBytes "$base/claude-tweaks_windows_amd64.exe" 67108864 "Downloading installer · $Release"
+    $binary = Get-ReleaseBytes "$base/claude-tweaks_windows_amd64.exe" 67108864 "Downloading installer | $Release"
     $checksums = [Text.Encoding]::UTF8.GetString((Get-ReleaseBytes "$base/checksums.txt" 65536 'Downloading checksums...'))
     Write-DownloadProgress 'Verifying download...'
     $target = Install-SettingsBinary ([Environment]::GetFolderPath('UserProfile')) ([Environment]::GetFolderPath('LocalApplicationData')) $Release $binary $checksums
