@@ -32,11 +32,14 @@ The command downloads the latest published release. You do not need to enter or 
 
 ## Finish setup
 
-1. Review the system check.
-2. If Claude is missing, approve its installation or install it yourself first.
-3. Choose font, theme, and right-to-left separately.
-4. Review your choices and select Apply.
-5. On macOS and Windows, open Claude normally. On Linux, use the applications menu or dock.
+Setup checks your system automatically. If Claude is missing, approve its installation or install it yourself first.
+
+1. **Font:** select Estedad, Vazirmatn, or Use Claude default.
+2. **Theme:** preview Nord or Gruvbox Dark, or select Use Claude default.
+3. **Direction:** select Automatic or Use Claude default.
+4. **Apply:** review the rows, edit any choice, and select Apply changes.
+
+On macOS and Windows, open Claude normally. On Linux, use the applications menu or dock.
 
 The installer never quits Claude for you.
 

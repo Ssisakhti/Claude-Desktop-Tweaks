@@ -10,5 +10,5 @@ test('Native payload template reproduces every independently selected extension'
   const features={font:!!(i&1),theme:!!(i&2),rtl:!!(i&4)};
   assert.equal(template.replace('__CDT_FEATURES__',JSON.stringify(features)),buildExtension({features}).source);
  }
- for(const file of ['LICENSE','Estedad-OFL.txt','Nord-LICENSE','NOTICE.md'])assert.ok(fs.statSync(path.join(dir,file)).size>0);
+ for(const file of ['LICENSE','Estedad-OFL.txt','Nord-LICENSE','Vazirmatn-OFL.txt','Gruvbox-NOTICE.md','NOTICE.md'])assert.ok(fs.statSync(path.join(dir,file)).size>0);
 });

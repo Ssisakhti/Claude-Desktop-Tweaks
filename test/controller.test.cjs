@@ -105,7 +105,7 @@ function fixture({ gate = null, failWeight = null, directionRegression = false, 
 
 test('Snapshots and standalone toString functions match the module revision',async()=>{
  const f=fixture();
- assert.equal(CONTROLLER_REVISION,9);
+ assert.equal(CONTROLLER_REVISION,10);
  assert.equal(installController.revision,CONTROLLER_REVISION);
  assert.equal(f.apply.revision,CONTROLLER_REVISION);
  const serialized=vm.runInContext('('+f.apply.toString()+')',f.context);
@@ -558,4 +558,27 @@ test('A preview fills its existing text slot without resizing editor or controls
  assert.equal(f.getComputedStyle(f.document.getElementById('suggestion')).inlineSize,'100%');
  for(const id of ['suggestion-editor','suggestion-editor-shell','suggestion-shell','suggestion-control'])assert.equal(f.getComputedStyle(f.document.getElementById(id)).inlineSize,'auto',id);
  f.window[key].dispose();
+});
+
+for(const fontFamily of ['estedad','vazirmatn'])for(const themeName of ['nord','gruvbox'])for(let bits=0;bits<8;bits++)test(`Appearance ${fontFamily}/${themeName}, flags ${bits}`,async()=>{
+ const f=fixture({suggestion:'ادامه بده'}),features={font:!!(bits&1),theme:!!(bits&2),rtl:!!(bits&4),fontFamily,themeName};
+ const combined=[...fonts,...fonts.map(font=>({...font,family:'vazirmatn'}))];
+ await f.apply({kind:'chat',features},combined,f.scope,f.bidi,f.nord);
+ assert.equal(f.state.added.length,features.font?fonts.length:0,'only the chosen font is loaded');
+ assert.ok(f.state.added.every(face=>face.family===(fontFamily==='vazirmatn'?'Claude Persian Vazirmatn':'Claude Persian Estedad')));
+ const css=f.state.sheets.map(sheet=>sheet.css).join('\n');
+ assert.equal(css.includes('#1d2021'),features.theme&&themeName==='gruvbox');
+ assert.equal(css.includes('#2e3440'),features.theme&&themeName==='nord');
+ assert.equal(f.getComputedStyle(f.document.getElementById('suggestion')).direction,features.rtl?'rtl':'ltr');
+ assert.equal(f.document.toString(),f.baseline,'appearance must not change document text or controls');
+});
+test('Switching font and theme replaces resources and preserves text',async()=>{
+ const f=fixture(),combined=[...fonts,...fonts.map(font=>({...font,family:'vazirmatn'}))];
+ await f.apply({kind:'chat'},combined,f.scope,f.bidi,f.nord);
+ await f.apply({kind:'chat',features:{font:true,theme:true,rtl:true,fontFamily:'vazirmatn',themeName:'gruvbox'}},combined,f.scope,f.bidi,f.nord);
+ assert.equal(f.state.added.length,fonts.length);
+ assert.ok(f.state.added.every(face=>face.family==='Claude Persian Vazirmatn'));
+ assert.equal(f.state.sheets.length,2);
+ assert.ok(f.state.sheets[0].css.includes('#1d2021'));
+ assert.equal(f.document.toString(),f.baseline);
 });

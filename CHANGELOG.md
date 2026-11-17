@@ -1,13 +1,13 @@
 # Release information
 
-## 1.3.1
+## 1.4.0
 
-Standalone installers are available for macOS, official Ubuntu/Debian Linux packages, and the official x64 MSIX package on Windows 11. Linux and Windows support are experimental until live Claude checks are complete.
+The English terminal installer uses four steps: Font, Theme, Direction, and Apply. Existing installations open saved settings with a separate edit action for each choice. The layout keeps labels and values aligned, with action hints at the bottom.
 
-The English terminal interface provides independent font, theme, and right-to-left settings. It saves your choices and lets you change or disable them later. Hammerspoon, Node.js, and Go are not required to run it.
+Choose Estedad or Vazirmatn variable fonts, Nord or Gruvbox Dark themes, and automatic text direction independently. Each feature can use Claude defaults instead. The theme step includes a local preview before applying changes.
 
-Use one command in a macOS/Linux terminal or in Windows PowerShell. Downloads include five executables and SHA-256 checksums. Setup asks before installing missing Claude, preserves backups, and records startup settings for removal.
+Standalone installers are available for macOS, official Ubuntu/Debian Linux packages, and the official Windows 11 x64 MSIX package. Linux and Windows support remain experimental until live Claude checks are complete. End users do not need Node.js, Go, or Hammerspoon.
 
-Open Claude normally after applying. Windows setup preserves existing shortcuts and uses the current user's launch environment, with the previous value and type recorded for rollback.
+Use the install command to get the latest published release. Downloads include five executables and SHA-256 checksums. Setup asks before installing missing Claude and preserves backups and startup settings for removal.
 
 See [installation](docs/installation.md) and [tests and known limits](docs/testing.md).

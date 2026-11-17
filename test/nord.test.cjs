@@ -221,3 +221,11 @@ test('Composer focus draws a restrained one-pixel inset outline without changing
  assert.match(rule[2],/outline-offset: -1px !important;/);
  assert.doesNotMatch(rule[2],/padding|margin|border-width|height|width/);
 });
+
+test('Gruvbox text, controls, focus and ghost preview meet contrast targets',()=>{
+ const c=palette('gruvbox');
+ for(const fg of ['text','textSecondary','textMuted','accentText','errorText','successText','warning','promptSuggestion'])for(const bg of ['background','surface','hover'])assert.ok(contrast(c[fg],c[bg])>=4.5,`${fg}/${bg}`);
+ for(const [fg,bg] of [['selectionText','selection'],['onAccent','accent'],['onAccent','accentHover'],['errorText','errorBackground'],['successText','successBackground']])assert.ok(contrast(c[fg],c[bg])>=4.5,`${fg}/${bg}`);
+ for(const fg of ['border','focus','composerFocus'])for(const bg of ['background','surface'])assert.ok(contrast(c[fg],c[bg])>=3,`${fg}/${bg}`);
+ assert.ok(contrast(c.promptSuggestion,c.text)>=1.7,'ghost differs from accepted text');
+});

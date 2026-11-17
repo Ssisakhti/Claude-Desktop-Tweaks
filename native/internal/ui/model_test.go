@@ -39,19 +39,23 @@ func press(m Model, code rune) (Model, tea.Cmd) {
 }
 func TestIndependentSwitchesAndConfirmation(t *testing.T) {
 	m, b := ready()
-	m, _ = press(m, tea.KeyEnter)
-	for n := 0; n < 3; n++ {
-		m, _ = press(m, ' ')
-		m, _ = press(m, tea.KeyDown)
+	for _, screen := range []string{"font", "theme", "direction"} {
+		if m.screen != screen {
+			t.Fatal("wrong step", m.screen)
+		}
+		for m.cursor != map[string]int{"font": 2, "theme": 2, "direction": 1}[screen] {
+			m, _ = press(m, tea.KeyDown)
+		}
+		m, _ = press(m, tea.KeyEnter)
 	}
-	if m.draft != (installer.Features{}) {
-		t.Fatal("switches not independent")
+	if m.draft.Font || m.draft.Theme || m.draft.RTL {
+		t.Fatal("features not independent")
 	}
-	m, cmd := press(m, tea.KeyEnter)
-	if m.screen != "review" || cmd != nil || b.installs != 0 {
+	if m.screen != "review" || b.installs != 0 {
 		t.Fatal("applied without review")
 	}
-	_, cmd = press(m, tea.KeyEnter)
+	m.cursor = 3
+	_, cmd := press(m, tea.KeyEnter)
 	if cmd == nil {
 		t.Fatal("apply missing")
 	}
@@ -63,7 +67,7 @@ func TestIndependentSwitchesAndConfirmation(t *testing.T) {
 func TestDownloadRequiresY(t *testing.T) {
 	m, b := ready()
 	m.status.ClaudeInstalled = false
-	m, _ = press(m, tea.KeyEnter)
+	m.screen = "download"
 	if m.screen != "download" {
 		t.Fatal("download page missing")
 	}
@@ -88,28 +92,34 @@ func TestRunningClaudeDoesNotStartInstall(t *testing.T) {
 	m, b := ready()
 	m.status.ClaudeRunning = true
 	m.screen = "review"
+	m.cursor = 3
 	_, cmd := press(m, tea.KeyEnter)
-	if cmd != nil || b.installs != 0 {
+	if b.installs != 0 {
 		t.Fatal("running app accepted")
+	}
+	if cmd != nil {
+		if _, ok := cmd().(checked); !ok {
+			t.Fatal("running app must only refresh checks")
+		}
 	}
 }
 func TestUnsavedExitRequiresConfirmation(t *testing.T) {
 	m, _ := ready()
-	m.screen = "features"
-	m, _ = press(m, ' ')
+	m.screen = "font"
+	m, _ = press(m, tea.KeyDown)
 	m, cmd := press(m, 'q')
 	if m.screen != "discard" || cmd != nil {
 		t.Fatal("draft discarded silently")
 	}
 	m, _ = press(m, tea.KeyEsc)
-	if m.screen != "features" {
+	if m.screen != "font" {
 		t.Fatal("cancel lost settings")
 	}
 }
 func TestLayoutFitsSupportedTerminalSizes(t *testing.T) {
 	m, _ := ready()
 	for _, size := range [][2]int{{40, 16}, {60, 24}, {80, 30}, {120, 40}} {
-		for _, screen := range []string{"check", "features", "review", "download", "working", "done", "error"} {
+		for _, screen := range []string{"loading", "font", "theme", "direction", "settings", "review", "download", "working", "done", "error"} {
 			m.width, m.height = size[0], size[1]
 			m.screen = screen
 			m.err = errors.New("test error\x1b[2J\x07\r line")
@@ -132,6 +142,7 @@ func TestLayoutFitsSupportedTerminalSizes(t *testing.T) {
 func TestSavedSettingsAndInstallErrors(t *testing.T) {
 	m, b := ready()
 	m.screen = "review"
+	m.cursor = 3
 	b.fail = errors.New("Quit Claude and retry")
 	m, cmd := press(m, tea.KeyEnter)
 	next, _ := m.Update(runEffect(cmd))
@@ -160,8 +171,8 @@ func runEffect(cmd tea.Cmd) tea.Msg {
 
 func TestNarrowWindowStillConfirmsUnsavedExit(t *testing.T) {
 	m, _ := ready()
-	m.screen = "features"
-	m, _ = press(m, ' ')
+	m.screen = "font"
+	m, _ = press(m, tea.KeyDown)
 	m.width = 59
 	m, cmd := press(m, 'q')
 	if m.screen != "discard" || cmd != nil {
@@ -171,7 +182,7 @@ func TestNarrowWindowStillConfirmsUnsavedExit(t *testing.T) {
 		t.Fatal("confirmation invisible")
 	}
 	m, _ = press(m, tea.KeyEnter)
-	if m.screen != "features" {
+	if m.screen != "font" {
 		t.Fatal("default discard choice was not no")
 	}
 }

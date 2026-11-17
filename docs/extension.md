@@ -46,7 +46,7 @@ For `about:srcdoc` frames, it uses browser-provided ancestor origins. It does no
 
 Styles stay in memory. The controller does not edit message text, document content, table column order, or code. It handles supported Persian prose separately from declared programming languages.
 
-The extension has no background worker, network requests, or storage permissions. Its font and license files are bundled locally.
+The extension has no background worker, network requests, or storage permissions. Both variable fonts and their license notices are bundled locally; only the selected font is decoded and loaded. Nord and Gruvbox Dark share the same component and interaction rules with separate palettes.
 
 ## Diagnostics
 

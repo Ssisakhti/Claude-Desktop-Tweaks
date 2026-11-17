@@ -30,25 +30,25 @@ The Windows script uses the built-in PowerShell runtime, checks HTTPS redirects 
 
 | Key | Action |
 | --- | --- |
-| Arrow keys or J/K | Move between features |
-| Space | Toggle the selected feature |
-| 1, 2, 3 | Toggle font, theme, or right-to-left |
-| Enter | Continue, review, then apply |
-| Escape | Go back |
-| R | Refresh the system check |
+| Up / Down | Choose an option or settings row |
+| Enter | Continue, edit a row, or use the selected action |
+| Escape | Go back without losing choices |
+| R | Refresh the check on the review or settings page |
 | Q | Exit; confirm if you have unsaved changes |
 
-Use a terminal at least 60 columns wide and 22 rows high. Wider terminals show a side panel. `NO_COLOR` disables terminal colors.
+Use a terminal at least 60 columns wide and 22 rows high. The interface keeps one content column with a fixed label and value layout. The action hints stay at the bottom. `NO_COLOR` disables terminal colors.
 
-## Feature choices
+## Setup and saved settings
 
-Each option is independent, and you can change it at any time by running the installer again.
+Checks run automatically. New installations have four steps: Font, Theme, Direction, and Apply. Existing installations open a settings summary. Select a row to edit it, then review and apply your changes.
 
-- **Font:** Estedad for Persian content, with weights 100–900 in one local WOFF2 file. It does not change your terminal font.
-- **Theme:** Nord colors in Claude's dark mode. Nord is the available theme, not the product name.
-- **Right-to-left:** direction based on text, including mixed Persian and English. Code and table column order are preserved.
+Each choice is independent:
 
-All-off leaves the extension installed without applying the three tweaks. Quit Claude before applying changes, then reopen it.
+- **Font:** Estedad, Vazirmatn, or Use Claude default. Both fonts use local variable WOFF2 files with weights 100–900. The installer loads only the selected font into Claude. It does not change your terminal font; the terminal cannot preview these fonts accurately.
+- **Theme:** Nord, Gruvbox Dark with hard contrast, or Use Claude default. A small colored message and composer preview changes as you move between themes. This preview does not change Claude. Themes apply in Claude's dark mode.
+- **Direction:** Automatic or Use Claude default. Automatic follows Persian and English text while preserving code and table column order.
+
+Use Claude default disables only that feature. Selecting defaults for all three leaves the extension installed without applying tweaks. The choices are saved when you apply. Quit Claude before applying changes, then reopen it.
 
 ## Missing Claude on macOS
 

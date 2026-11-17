@@ -6,7 +6,7 @@ Automated tests and live app checks answer different questions. Passing a test s
 
 | Area | Coverage |
 | --- | --- |
-| Feature selection | All eight font/theme/RTL combinations, saved choices, changes, and all-off |
+| Feature selection | All eight enable/disable combinations with each font/theme pair, saved choices, changes, and defaults |
 | Installation | Ownership checks, foreign-file preservation, locks, backups, rollback, running-app guards, and prerequisite consent |
 | macOS display | Live checks on Apple silicon with Claude 5.11492.5 cover sampled chat replies, document artifacts, comments, reloads, and ordinary app startup |
 | Linux installation | Tests in isolated Ubuntu 22.04 and Debian 12 containers, including separate config/data filesystems |
@@ -14,6 +14,8 @@ Automated tests and live app checks answer different questions. Passing a test s
 | Public download | Published checksums and a standalone download without Node or Go on PATH |
 | Linux compatibility | Read-only inspection of the official Claude 5.11492.5 amd64 package and its startup hook |
 | Suggestion preview | Controller tests and synthetic browser checks for Persian/English direction, text-slot sizing, and unchanged controls |
+
+Vazirmatn and Gruvbox Dark have automated resource, style, and installer-preview checks. Sampled live macOS checks also cover ordinary chat replies, a Persian document artifact, its nested content frame, and artifact comments. The variable font decoded at weights 100–900; sampled Persian prose used RTL, and table containers retained LTR column layout. These checks used existing content without editing or sending messages.
 
 Linux graphical chat/artifact checks, the PolicyKit permission dialog, and Windows MSIX startup/display checks are **not verified live**. Linux and Windows support remain experimental. Live suggestion-preview acceptance, Intel Mac display behavior, macOS login-time startup, native Quick Entry, and every artifact type are also outside the verified coverage.
 
@@ -27,7 +29,7 @@ npm test
 npm run check:fonts
 ```
 
-The font check verifies the bundled official Estedad variable font and its weights. JavaScript tests cover frame selection, text direction, font delivery, theme rules, controller cleanup, generated feature combinations, and bootstrap checks.
+The font check verifies the bundled official Estedad and Vazirmatn variable fonts and their weights. JavaScript tests cover frame selection, text direction, font delivery, theme rules, controller cleanup, generated feature combinations, and bootstrap checks.
 
 Generate the native payload and run the Go checks:
 

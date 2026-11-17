@@ -96,7 +96,7 @@ func TestSIGTERMWaitsForTransactionCleanup(t *testing.T) {
 		}
 	}
 	waitFor("READY")
-	if _, err = io.WriteString(stdin, "\r\r\r"); err != nil {
+	if _, err = io.WriteString(stdin, "\r\r\r\x1b[B\x1b[B\x1b[B\r"); err != nil {
 		t.Fatal(err)
 	}
 	waitFor("STARTED")

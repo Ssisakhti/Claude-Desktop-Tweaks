@@ -30,12 +30,14 @@ const markerEnd = "-- END Claude Desktop Tweaks"
 var embedded embed.FS
 
 type Features struct {
-	Font  bool `json:"font"`
-	Theme bool `json:"theme"`
-	RTL   bool `json:"rtl"`
+	Font       bool   `json:"font"`
+	Theme      bool   `json:"theme"`
+	RTL        bool   `json:"rtl"`
+	FontFamily string `json:"fontFamily,omitempty"`
+	ThemeName  string `json:"themeName,omitempty"`
 }
 
-func DefaultFeatures() Features { return Features{true, true, true} }
+func DefaultFeatures() Features { return Features{Font: true, Theme: true, RTL: true} }
 
 type Receipt struct {
 	Features                 Features `json:"features"`
@@ -102,6 +104,9 @@ func New() (*Installer, error) {
 	return &Installer{Home: home, Platform: runtime.GOOS, Run: RunSystem, Applications: "/Applications", ConfigHome: os.Getenv("XDG_CONFIG_HOME"), DataHome: os.Getenv("XDG_DATA_HOME")}, nil
 }
 func Payload(f Features) (map[string][]byte, error) {
+	if err := f.Validate(); err != nil {
+		return nil, err
+	}
 	files := map[string][]byte{}
 	names, err := embedded.ReadDir("payload")
 	if err != nil {
@@ -121,6 +126,15 @@ func Payload(f Features) (map[string][]byte, error) {
 	flags, _ := json.Marshal(f)
 	files["content.js"] = bytes.Replace(source, []byte("__CDT_FEATURES__"), flags, 1)
 	return files, nil
+}
+func (f Features) Validate() error {
+	if f.FontFamily != "" && f.FontFamily != "estedad" && f.FontFamily != "vazirmatn" {
+		return errors.New("invalid font selection")
+	}
+	if f.ThemeName != "" && f.ThemeName != "nord" && f.ThemeName != "gruvbox" {
+		return errors.New("invalid theme selection")
+	}
+	return nil
 }
 func hash(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
 func token() string {
@@ -406,8 +420,23 @@ func decodeReceipt(b []byte) (Receipt, error) {
 	}
 	if flags, ok := raw["features"]; ok {
 		var fields map[string]any
-		if json.Unmarshal(flags, &fields) != nil || len(fields) != 3 {
+		if json.Unmarshal(flags, &fields) != nil || len(fields) < 3 || len(fields) > 5 {
 			return r, errors.New("invalid feature selection")
+		}
+		for k, v := range fields {
+			switch k {
+			case "font", "theme", "rtl":
+			case "fontFamily":
+				if name, ok := v.(string); !ok || (name != "estedad" && name != "vazirmatn") {
+					return r, errors.New("invalid font selection")
+				}
+			case "themeName":
+				if name, ok := v.(string); !ok || (name != "nord" && name != "gruvbox") {
+					return r, errors.New("invalid theme selection")
+				}
+			default:
+				return r, errors.New("invalid feature selection")
+			}
 		}
 		for _, k := range []string{"font", "theme", "rtl"} {
 			if _, ok := fields[k].(bool); !ok {
@@ -841,7 +870,7 @@ func (i *Installer) Install(features Features) (result Result, retErr error) {
 // Licenses makes all distribution notices available without installing files.
 func Licenses() (string, error) {
 	var result strings.Builder
-	for _, name := range []string{"LICENSE", "Estedad-OFL.txt", "Nord-LICENSE", "Terminal-LICENSES.txt"} {
+	for _, name := range []string{"LICENSE", "Estedad-OFL.txt", "Nord-LICENSE", "Vazirmatn-OFL.txt", "Gruvbox-NOTICE.md", "Terminal-LICENSES.txt"} {
 		b, e := embedded.ReadFile("payload/" + name)
 		if e != nil {
 			return "", e

@@ -78,7 +78,7 @@ func fixture(t *testing.T) (*Installer, *fakeSystem) {
 }
 func TestIndependentPayloads(t *testing.T) {
 	for i := 0; i < 8; i++ {
-		f := Features{i&1 != 0, i&2 != 0, i&4 != 0}
+		f := Features{Font: i&1 != 0, Theme: i&2 != 0, RTL: i&4 != 0}
 		files, err := Payload(f)
 		if err != nil {
 			t.Fatal(err)
@@ -91,7 +91,7 @@ func TestIndependentPayloads(t *testing.T) {
 }
 func TestInstallAndRepeat(t *testing.T) {
 	i, s := fixture(t)
-	f := Features{true, false, true}
+	f := Features{Font: true, Theme: false, RTL: true}
 	r, err := i.Install(f)
 	if err != nil {
 		t.Fatal(err)
@@ -124,7 +124,7 @@ func TestRollbackOnRegistrationFailure(t *testing.T) {
 	s.hasEnv = true
 	s.env = "previous"
 	s.fail = "setenv"
-	_, err := i.Install(Features{true, true, true})
+	_, err := i.Install(Features{Font: true, Theme: true, RTL: true})
 	if err == nil {
 		t.Fatal("failure ignored")
 	}
@@ -162,7 +162,7 @@ func TestUnknownExtensionAndSymlinkPreserved(t *testing.T) {
 }
 func TestOwnedUpgradeAndAllOff(t *testing.T) {
 	i, _ := fixture(t)
-	if _, err := i.Install(Features{true, true, true}); err != nil {
+	if _, err := i.Install(Features{Font: true, Theme: true, RTL: true}); err != nil {
 		t.Fatal(err)
 	}
 	r, err := i.Install(Features{})

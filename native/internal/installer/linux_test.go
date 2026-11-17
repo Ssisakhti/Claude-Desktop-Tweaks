@@ -57,7 +57,7 @@ func TestLinuxInstallAndIndependentPreferences(t *testing.T) {
 	for flags := 0; flags < 8; flags++ {
 		t.Run(stringInt(flags), func(t *testing.T) {
 			i := linuxFixture(t)
-			f := Features{flags&1 != 0, flags&2 != 0, flags&4 != 0}
+			f := Features{Font: flags&1 != 0, Theme: flags&2 != 0, RTL: flags&4 != 0}
 			s, e := i.Check()
 			if e != nil || !s.ClaudeInstalled {
 				t.Fatalf("check: %+v %v", s, e)

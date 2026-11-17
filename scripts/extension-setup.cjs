@@ -36,7 +36,7 @@ function checkParents(home,file,create=false){
 function extensionFiles(root,features){
  const {manifest,source}=buildExtension({features});
  const files={'manifest.json':Buffer.from(JSON.stringify(manifest,null,2)+'\n'),'content.js':Buffer.from(source)};
- for(const [name,source]of [['LICENSE','LICENSE'],['Estedad-OFL.txt','assets/estedad/OFL.txt'],['Nord-LICENSE','assets/nord/LICENSE'],['NOTICE.md','NOTICE.md']])files[name]=fs.readFileSync(path.join(root,source));
+ for(const [name,source]of [['LICENSE','LICENSE'],['Estedad-OFL.txt','assets/estedad/OFL.txt'],['Nord-LICENSE','assets/nord/LICENSE'],['Vazirmatn-OFL.txt','assets/vazirmatn/OFL.txt'],['Gruvbox-NOTICE.md','assets/gruvbox/SOURCE.md'],['NOTICE.md','NOTICE.md']])files[name]=fs.readFileSync(path.join(root,source));
  return files;
 }
 function installExtension({home=os.homedir(),root=path.resolve(__dirname,'..'),platform=process.platform,run=(cmd,args)=>spawnSync(cmd,args,{encoding:'utf8',timeout:10000}),dryRun=false,features}={}){

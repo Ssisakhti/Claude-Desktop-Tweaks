@@ -8,7 +8,7 @@ function writeNativePayload(destination){
  fs.mkdirSync(destination,{recursive:true});
  fs.writeFileSync(path.join(destination,'content.js'),source.replace(marker,'__CDT_FEATURES__'));
  fs.writeFileSync(path.join(destination,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
- for(const [to,from]of [['LICENSE','LICENSE'],['Estedad-OFL.txt','assets/estedad/OFL.txt'],['Nord-LICENSE','assets/nord/LICENSE'],['NOTICE.md','NOTICE.md'],['Terminal-LICENSES.txt','assets/terminal/LICENSES.txt']])fs.copyFileSync(path.join(__dirname,'..',from),path.join(destination,to));
+ for(const [to,from]of [['LICENSE','LICENSE'],['Estedad-OFL.txt','assets/estedad/OFL.txt'],['Nord-LICENSE','assets/nord/LICENSE'],['Vazirmatn-OFL.txt','assets/vazirmatn/OFL.txt'],['Gruvbox-NOTICE.md','assets/gruvbox/SOURCE.md'],['NOTICE.md','NOTICE.md'],['Terminal-LICENSES.txt','assets/terminal/LICENSES.txt']])fs.copyFileSync(path.join(__dirname,'..',from),path.join(destination,to));
 }
 if(require.main===module)writeNativePayload(path.join(__dirname,'../native/internal/installer/payload'));
 module.exports={writeNativePayload};

@@ -58,7 +58,7 @@ const windowsTestHook = `REACT_PROFILE loadReactDevTools fmkadmapgofadopljbjfkap
 func TestWindowsIndependentSettingsAndRepeat(t *testing.T) {
 	for bits := 0; bits < 8; bits++ {
 		i := windowsFixture(t)
-		flags := Features{bits&1 != 0, bits&2 != 0, bits&4 != 0}
+		flags := Features{Font: bits&1 != 0, Theme: bits&2 != 0, RTL: bits&4 != 0}
 		s, e := i.Check()
 		if e != nil || !s.ClaudeInstalled {
 			t.Fatalf("check: %+v %v", s, e)

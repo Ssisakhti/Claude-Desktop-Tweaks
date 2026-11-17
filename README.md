@@ -2,8 +2,8 @@
 
 Choose your font, theme, and text direction in Claude Desktop.
 
-- **Font:** Estedad for Persian text, with weights 100–900 in one local font file.
-- **Theme:** Nord colors for dark mode.
+- **Font:** Estedad or Vazirmatn for Persian text, with weights 100–900 in a local variable font.
+- **Theme:** Nord or Gruvbox Dark colors for dark mode.
 - **Right-to-left:** automatic direction for Persian and mixed Persian/English text.
 
 Turn each option on or off independently. Run the installer again whenever you want to change your choices.
@@ -32,7 +32,7 @@ This command gets the latest published release. No version number is needed.
 
 ### Finish setup
 
-Choose font, theme, and right-to-left separately, then review and apply. The interface is in English. If Claude is missing, the installer asks before installing it.
+Follow the Font, Theme, Direction, and Apply steps. Preview the theme before applying. The interface is in English. If Claude is missing, the installer asks before installing it.
 
 On macOS and Windows, open Claude normally after setup. On Linux, use the applications menu or dock.
 
