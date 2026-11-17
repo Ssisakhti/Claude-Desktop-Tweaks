@@ -1,25 +1,21 @@
 name: Windows public download check
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: Published release to verify
-        required: true
-        default: v1.3.1
 permissions:
   contents: read
 jobs:
   download:
     runs-on: windows-2025
     steps:
-      - name: Download and run the published settings executable
+      - name: Download and run the latest published settings executable
         shell: powershell
-        env:
-          CDT_RELEASE: ${{ inputs.version }}
         run: |
           $ErrorActionPreference='Stop'
+          $release=(Invoke-RestMethod 'https://api.github.com/repos/Ssisakhti/Claude-Desktop-Tweaks/releases/latest').tag_name
+          if ($release -notmatch '^v[0-9][A-Za-z0-9._-]*$' -or $release.Contains('..')) {throw 'Invalid latest release version.'}
           $script=Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1'
-          & ([scriptblock]::Create($script)) -Version $env:CDT_RELEASE -NoLaunch
-          $target=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) "Claude Desktop Tweaks/releases/$env:CDT_RELEASE/x64/claude-tweaks.exe"
-          & $target --version
-          if ($LASTEXITCODE -ne 0) {throw 'Published executable did not run.'}
+          & ([scriptblock]::Create($script)) -NoLaunch
+          $target=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) "Claude Desktop Tweaks/releases/$release/x64/claude-tweaks.exe"
+          $reported=& $target --version
+          if ($LASTEXITCODE -ne 0 -or $reported -ne "Claude Desktop Tweaks $release") {throw 'The latest published executable did not run.'}
+          Write-Host $reported

@@ -28,6 +28,8 @@ Save your work and quit Claude. Open PowerShell and run:
 & ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1')))
 ```
 
+The command downloads the latest published release. You do not need to enter or update a version number.
+
 ## Finish setup
 
 1. Review the system check.

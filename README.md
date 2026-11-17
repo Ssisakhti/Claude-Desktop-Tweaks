@@ -28,6 +28,8 @@ Run in PowerShell:
 & ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Ssisakhti/Claude-Desktop-Tweaks/main/scripts/install.ps1')))
 ```
 
+This command gets the latest published release. No version number is needed.
+
 ### Finish setup
 
 Choose font, theme, and right-to-left separately, then review and apply. The interface is in English. If Claude is missing, the installer asks before installing it.
