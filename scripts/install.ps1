@@ -1,18 +1,120 @@
 param([string]$Version = 'latest', [switch]$NoLaunch)
 $ErrorActionPreference = 'Stop'
 
-function Get-ReleaseBytes([string]$Url, [int]$Limit = 67108864) {
+# Download feedback uses one fixed console region. Redirected output stays plain.
+function Get-DownloadProgressLines([string]$Phase, [long]$Received, [long]$Total, [double]$Seconds, [int]$Frame = 0) {
+    $secondsSafe = [Math]::Max(1, $Seconds)
+    $speed = '{0:0} KB/s' -f ($Received / 1024 / $secondsSafe)
+    if ($Total -gt 0) {
+        $percent = [Math]::Min(100, [Math]::Floor(100.0 * $Received / $Total))
+        $filled = [int][Math]::Floor($percent * 24 / 100)
+        $bar = '[' + ('#' * $filled) + ('-' * (24 - $filled)) + '] ' + $percent + '%'
+        $amount = '{0:0.0} / {1:0.0} MB' -f ($Received / 1048576), ($Total / 1048576)
+    } else {
+        $spinner = @('|','/','-','\')[$Frame % 4]
+        $bar = "$spinner Receiving data..."
+        $amount = '{0:0.0} MB' -f ($Received / 1048576)
+    }
+    if ($Phase -notlike 'Downloading installer*') {
+        $bar=@('|','/','-','\')[$Frame % 4]+' Working...';$amount='Please wait...';$speed=''
+        if ($Phase -like 'Verifying*') {$bar='Checking SHA-256 integrity.'}
+        return @($Phase,$bar,$amount)
+    }
+    return @($Phase, $bar, "$amount · $speed")
+}
+function Write-DownloadProgress([string]$Phase, [long]$Received = 0, [long]$Total = 0, [double]$Seconds = 0) {
+    if ($null -eq $script:DownloadDisplay) {
+        $interactive = $false
+        try { $interactive = -not [Console]::IsOutputRedirected -and [Console]::WindowWidth -ge 60 } catch {}
+        $script:DownloadDisplay = @{Interactive=$interactive; Top=0; Frame=0; LastPhase=''; LastPaint=[datetime]::MinValue}
+        if ($interactive) {
+            [Console]::WriteLine('  CLAUDE DESKTOP TWEAKS')
+            [Console]::WriteLine('  Ctrl+C Cancel')
+            [Console]::WriteLine('')
+            for ($n=0; $n -lt 3; $n++) { [Console]::WriteLine('') }
+            $script:DownloadDisplay.Top = [Math]::Max(0, [Console]::CursorTop - 3)
+        }
+    }
+    $display = $script:DownloadDisplay
+    if (-not $display.Interactive) {
+        if ($display.LastPhase -ne $Phase) { Write-Host $Phase; $display.LastPhase=$Phase }
+        return
+    }
+    if ($display.LastPhase -eq $Phase -and ((Get-Date) - $display.LastPaint).TotalMilliseconds -lt 150) { return }
+    $display.LastPhase=$Phase; $display.LastPaint=Get-Date
+    $lines = @(Get-DownloadProgressLines $Phase $Received $Total $Seconds $display.Frame)
+    $display.Frame++
+    $oldColor=[Console]::ForegroundColor
+    try {
+        $width=[Math]::Max(1,[Math]::Min(72,[Console]::WindowWidth-2))
+        for ($n=0;$n -lt 3;$n++) {
+            [Console]::SetCursorPosition(0,$display.Top+$n)
+            $line='  '+$lines[$n]
+            if ($line.Length -gt $width) { $line=$line.Substring(0,$width) }
+            if (-not $env:NO_COLOR -and $n -eq 0) {
+                if ($env:WT_SESSION -or $env:COLORTERM -eq 'truecolor') {
+                    [Console]::Write(([char]27)+'[38;2;136;192;208m'+$line.PadRight($width)+([char]27)+'[0m')
+                } else { [Console]::ForegroundColor=[ConsoleColor]::Cyan; [Console]::Write($line.PadRight($width)) }
+            } else { [Console]::ForegroundColor=$oldColor; [Console]::Write($line.PadRight($width)) }
+        }
+        [Console]::SetCursorPosition(0,$display.Top+3)
+    } catch {
+        # Resize or hosts without cursor support fall back to plain phase messages.
+        $display.Interactive=$false
+        Write-Host $Phase
+    } finally { [Console]::ForegroundColor=$oldColor }
+}
+function Close-DownloadProgress {
+    if ($script:DownloadDisplay -and $script:DownloadDisplay.Interactive) {
+        try { [Console]::SetCursorPosition(0,$script:DownloadDisplay.Top+3) } catch {}
+    }
+    $script:DownloadDisplay=$null
+}
+function Read-ReleaseStream([IO.Stream]$Stream, [long]$Total, [int]$Limit, [string]$Phase, [double]$IdleTimeout=30, [double]$TotalTimeout=180) {
+    $memory=[IO.MemoryStream]::new()
+    $watch=[Diagnostics.Stopwatch]::StartNew()
+    try {
+        $buffer=[byte[]]::new(16384)
+        while ($true) {
+            if ($watch.Elapsed.TotalSeconds -gt $TotalTimeout) { throw 'Download timed out. Check your connection and run the install command again.' }
+            $readStarted=$watch.Elapsed.TotalSeconds
+            $cancel=[Threading.CancellationTokenSource]::new()
+            try {
+                $cancel.CancelAfter([int]($IdleTimeout*1000))
+                $task=$Stream.ReadAsync($buffer,0,$buffer.Length,$cancel.Token)
+                while (-not $task.Wait(150)) {
+                    Write-DownloadProgress $Phase $memory.Length $Total $watch.Elapsed.TotalSeconds
+                    if ($watch.Elapsed.TotalSeconds -gt $TotalTimeout -or $watch.Elapsed.TotalSeconds-$readStarted -gt $IdleTimeout) { $cancel.Cancel(); throw 'Download timed out. Check your connection and run the install command again.' }
+                }
+                $count=$task.GetAwaiter().GetResult()
+            } catch {
+                if ($cancel.IsCancellationRequested) { throw 'Download stalled or timed out. Check your connection and run the install command again.' }
+                throw
+            } finally { $cancel.Dispose() }
+            if ($count -eq 0) { break }
+            if ($memory.Length + $count -gt $Limit) { throw 'Release download is too large.' }
+            $memory.Write($buffer,0,$count)
+            Write-DownloadProgress $Phase $memory.Length $Total $watch.Elapsed.TotalSeconds
+        }
+        if ($Total -gt 0 -and $memory.Length -ne $Total) { throw 'Download was incomplete. Run the install command again.' }
+        return ,$memory.ToArray()
+    } finally { $memory.Dispose(); $watch.Stop() }
+}
+
+function Get-ReleaseBytes([string]$Url, [int]$Limit = 67108864, [string]$Phase = 'Downloading installer...') {
     Add-Type -AssemblyName System.Net.Http
     $handler = [Net.Http.HttpClientHandler]::new()
     $handler.AllowAutoRedirect = $false
     $client = [Net.Http.HttpClient]::new($handler)
-    $client.Timeout = [TimeSpan]::FromSeconds(180)
+    $client.Timeout = [TimeSpan]::FromSeconds(30)
     $client.DefaultRequestHeaders.UserAgent.ParseAdd('Claude-Desktop-Tweaks/1.0')
     try {
         $uri = [Uri]$Url
         for ($redirect = 0; $redirect -le 8; $redirect++) {
             if ($uri.Scheme -ne 'https' -or $uri.UserInfo) { throw 'Only HTTPS downloads are allowed.' }
-            $response = $client.GetAsync($uri, [Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+            $headerTask=$client.GetAsync($uri, [Net.Http.HttpCompletionOption]::ResponseHeadersRead)
+            while (-not $headerTask.Wait(150)) { Write-DownloadProgress $Phase }
+            $response=$headerTask.GetAwaiter().GetResult()
             try {
                 if ([int]$response.StatusCode -in @(301,302,303,307,308)) {
                     $uri = [Uri]::new($uri, $response.Headers.Location)
@@ -21,18 +123,14 @@ function Get-ReleaseBytes([string]$Url, [int]$Limit = 67108864) {
                 $response.EnsureSuccessStatusCode() | Out-Null
                 if ($response.Content.Headers.ContentLength -gt $Limit) { throw 'Release download is too large.' }
                 $inputStream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
-                $memory = [IO.MemoryStream]::new()
                 try {
-                    $buffer = [byte[]]::new(16384)
-                    while (($count = $inputStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-                        if ($memory.Length + $count -gt $Limit) { throw 'Release download is too large.' }
-                        $memory.Write($buffer, 0, $count)
-                    }
-                    return ,$memory.ToArray()
-                } finally { $inputStream.Dispose(); $memory.Dispose() }
+                    return ,(Read-ReleaseStream $inputStream ([long]$response.Content.Headers.ContentLength) $Limit $Phase)
+                } finally { $inputStream.Dispose() }
             } finally { $response.Dispose() }
         }
         throw 'Too many download redirects.'
+    } catch {
+        throw "Download stopped or failed. Check your connection and run the install command again. $($_.Exception.Message)"
     } finally { $client.Dispose(); $handler.Dispose() }
 }
 
@@ -90,18 +188,22 @@ function Invoke-ClaudeTweaksInstall([string]$Release, [bool]$SkipLaunch) {
     if ($build -lt 22000 -or $architecture -ne 'AMD64') { throw 'This installer supports Windows 11 x64.' }
     $repository = 'https://github.com/Ssisakhti/Claude-Desktop-Tweaks'
     if ($Release -eq 'latest') {
-        $metadata = [Text.Encoding]::UTF8.GetString((Get-ReleaseBytes 'https://api.github.com/repos/Ssisakhti/Claude-Desktop-Tweaks/releases/latest' 2097152)) | ConvertFrom-Json
+        $metadata = [Text.Encoding]::UTF8.GetString((Get-ReleaseBytes 'https://api.github.com/repos/Ssisakhti/Claude-Desktop-Tweaks/releases/latest' 2097152 'Finding the latest release...')) | ConvertFrom-Json
         $Release = $metadata.tag_name
     }
     if ($Release -notmatch '^v[0-9][A-Za-z0-9._-]*$' -or $Release.Contains('..')) { throw 'Invalid release version.' }
-    Write-Host "Downloading Claude Desktop Tweaks $Release for Windows x64..."
+    Write-DownloadProgress "Downloading installer · $Release"
     $base = "$repository/releases/download/$Release"
-    $binary = Get-ReleaseBytes "$base/claude-tweaks_windows_amd64.exe"
-    $checksums = [Text.Encoding]::UTF8.GetString((Get-ReleaseBytes "$base/checksums.txt" 65536))
+    $binary = Get-ReleaseBytes "$base/claude-tweaks_windows_amd64.exe" 67108864 "Downloading installer · $Release"
+    $checksums = [Text.Encoding]::UTF8.GetString((Get-ReleaseBytes "$base/checksums.txt" 65536 'Downloading checksums...'))
+    Write-DownloadProgress 'Verifying download...'
     $target = Install-SettingsBinary ([Environment]::GetFolderPath('UserProfile')) ([Environment]::GetFolderPath('LocalApplicationData')) $Release $binary $checksums
+    Close-DownloadProgress
     Write-Host 'Download verified. No Node.js or Go installation is needed.'
     Write-Host "Settings command: & '$($target.Replace("'","''"))'"
     if (-not $SkipLaunch) { & $target; if ($LASTEXITCODE -ne 0) { throw 'Setup did not finish. Review the message above.' } }
 }
 
-if ($MyInvocation.InvocationName -ne '.') { Invoke-ClaudeTweaksInstall $Version ([bool]$NoLaunch) }
+if ($MyInvocation.InvocationName -ne '.') {
+ try { Invoke-ClaudeTweaksInstall $Version ([bool]$NoLaunch) } finally { Close-DownloadProgress }
+}

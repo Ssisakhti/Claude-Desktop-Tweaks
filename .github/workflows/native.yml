@@ -33,6 +33,7 @@ jobs:
         run: |
           ./test/powershell-platform.ps1
           ./test/bootstrap-windows.ps1
+          ./test/download-progress.ps1
       - name: Smoke-test Windows executable
         if: runner.os == 'Windows'
         shell: powershell

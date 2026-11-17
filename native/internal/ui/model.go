@@ -107,6 +107,23 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if !m.status.ClaudeInstalled {
 			m.goTo("download")
+		} else if m.returnTo == "apply" {
+			m.returnTo = ""
+			if m.status.ClaudeRunning {
+				m.goTo("blocked")
+			} else {
+				m.screen = "working"
+				m.operation = "install"
+				return m, tea.Batch(func() tea.Msg { r, e := m.backend.Install(m.draft); return installed{r, e} }, pulse())
+			}
+		} else if m.returnTo == "blocked" {
+			m.returnTo = ""
+			if m.status.ClaudeRunning {
+				m.goTo("blocked")
+			} else {
+				m.goTo("review")
+				m.cursor = 3
+			}
 		} else if m.returnTo != "" {
 			m.goTo(m.returnTo)
 			m.returnTo = ""
@@ -254,14 +271,25 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 					m.goTo("review")
 					m.cursor = 3
 				} else if !m.status.ClaudeRunning {
-					m.screen = "working"
-					m.operation = "install"
-					return m, tea.Batch(func() tea.Msg { r, e := m.backend.Install(m.draft); return installed{r, e} }, pulse())
-				} else {
-					m.returnTo = "review"
+					m.returnTo = "apply"
 					m.screen = "loading"
 					return m, m.check()
+				} else {
+					m.goTo("blocked")
 				}
+			}
+		case "blocked":
+			if key == "up" || key == "down" {
+				m.cursor = 1 - m.cursor
+			}
+			if key == "esc" || (key == "enter" && m.cursor == 1) {
+				m.goTo("review")
+				m.cursor = 3
+			}
+			if key == "r" || (key == "enter" && m.cursor == 0) {
+				m.returnTo = "blocked"
+				m.screen = "loading"
+				return m, m.check()
 			}
 		case "download":
 			if key == "y" {

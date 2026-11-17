@@ -32,11 +32,11 @@ func TestWizardMakesOneIndependentChoicePerStep(t *testing.T) {
 	for n := 0; n < 3; n++ {
 		m, _ = press(m, tea.KeyDown)
 	}
-	_, cmd := press(m, tea.KeyEnter)
+	m, cmd := press(m, tea.KeyEnter)
 	if cmd == nil {
 		t.Fatal("apply action absent")
 	}
-	runEffect(cmd)
+	runFlow(m, cmd)
 	if b.installs != 1 {
 		t.Fatal("did not apply")
 	}
@@ -120,5 +120,63 @@ func TestInitialCheckRetryKeepsFirstInstallWizard(t *testing.T) {
 	m = next.(Model)
 	if m.screen != "font" {
 		t.Fatal("retry skipped the first-install choices", m.screen)
+	}
+}
+
+func TestRunningClaudeHasDedicatedWaitScreenOnEachPlatform(t *testing.T) {
+	for _, platform := range []string{"darwin", "linux", "windows"} {
+		m, b := ready()
+		m.status.Platform = platform
+		m.status.ClaudeRunning = true
+		m.screen = "review"
+		m.cursor = 3
+		m, cmd := press(m, tea.KeyEnter)
+		if m.screen != "blocked" || cmd != nil || b.installs != 0 {
+			t.Fatal("open app did not stop apply", platform, m.screen)
+		}
+		view := ansi.Strip(m.View().Content)
+		for _, s := range []string{"Claude is still open", "Check again", "Back", "Your choices will stay here"} {
+			if !strings.Contains(view, s) {
+				t.Fatal("missing wait screen text", s)
+			}
+		}
+		choices := m.draft
+		m, _ = press(m, tea.KeyDown)
+		m, _ = press(m, tea.KeyEnter)
+		if m.screen != "review" || m.draft != choices {
+			t.Fatal("back lost choices")
+		}
+	}
+}
+func TestBlockedRefreshPreservesDraftAndRequiresSeparateApply(t *testing.T) {
+	m, b := ready()
+	m.draft.FontFamily = "vazirmatn"
+	m.draft.ThemeName = "gruvbox"
+	m.screen = "blocked"
+	m.status.ClaudeRunning = true
+	m, cmd := press(m, tea.KeyEnter)
+	if cmd == nil {
+		t.Fatal("refresh missing")
+	}
+	next, _ := m.Update(cmd())
+	m = next.(Model)
+	if m.screen != "review" || m.draft.FontFamily != "vazirmatn" || b.installs != 0 {
+		t.Fatal("refresh applied or reset choices")
+	}
+}
+
+func TestClaudeOpenedAfterInitialCheckUsesBlockedScreen(t *testing.T) {
+	m, b := ready()
+	m.screen = "review"
+	m.cursor = 3
+	b.status.ClaudeRunning = true
+	m, cmd := press(m, tea.KeyEnter)
+	if cmd == nil {
+		t.Fatal("fresh check missing")
+	}
+	next, _ := m.Update(cmd())
+	m = next.(Model)
+	if m.screen != "blocked" || b.installs != 0 {
+		t.Fatal("stale check bypassed blocked screen", m.screen, b.installs)
 	}
 }

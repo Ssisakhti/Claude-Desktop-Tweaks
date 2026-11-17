@@ -12,6 +12,8 @@ curl --fail --silent --show-error --location --proto '=https' --proto-redir '=ht
 
 The script detects your system and processor, downloads one release, checks its SHA-256 checksum, and opens the interface. It prints the full path for reopening settings. It does not change your shell profile or PATH.
 
+During download, a fixed progress area shows the percentage, received size, and average speed when the server provides a total size. Unknown totals use a spinner and received size. Plain or redirected terminals show phase messages. `NO_COLOR` disables colors. Cancel with Ctrl+C; partial downloads are removed. Stalled or failed transfers stop with a retry message.
+
 The checksum checks download integrity. Downloads rely on HTTPS and this repository's release permissions for authenticity.
 
 The script needs Bash, curl, and either `sha256sum` or `shasum`. Linux supports the official Claude package on Ubuntu 22.04+ and Debian 12+, for x64 and ARM64. Linux display checks are pending, so support remains experimental. Windows ARM64, AppImage, and Flatpak are not supported.
@@ -48,7 +50,7 @@ Each choice is independent:
 - **Theme:** Nord, Gruvbox Dark with hard contrast, or Use Claude default. A small colored message and composer preview changes as you move between themes. This preview does not change Claude. Themes apply in Claude's dark mode.
 - **Direction:** Automatic or Use Claude default. Automatic follows Persian and English text while preserving code and table column order.
 
-Use Claude default disables only that feature. Selecting defaults for all three leaves the extension installed without applying tweaks. The choices are saved when you apply. Quit Claude before applying changes, then reopen it.
+Use Claude default disables only that feature. Selecting defaults for all three leaves the extension installed without applying tweaks. The choices are saved when you apply. Quit Claude before applying changes, then reopen it. If Claude is open, the installer stops at a dedicated screen with Check again and Back. Your choices remain in the session; it never quits Claude or applies automatically after a refresh.
 
 ## Missing Claude on macOS
 

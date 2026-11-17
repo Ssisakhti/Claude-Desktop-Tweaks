@@ -1,6 +1,10 @@
 # Release information
 
-## 1.4.0
+## 1.4.1
+
+Downloads show a progress bar, percentage, received size, and average speed when the total is known. Unknown-size transfers show a spinner and received size. Redirected output uses plain phase messages. Cancellation cleans up partial downloads.
+
+When Claude is open, setup keeps your choices and shows Check again and Back before applying. It never quits Claude automatically.
 
 The English terminal installer uses four steps: Font, Theme, Direction, and Apply. Existing installations open saved settings with a separate edit action for each choice. The layout keeps labels and values aligned, with action hints at the bottom.
 

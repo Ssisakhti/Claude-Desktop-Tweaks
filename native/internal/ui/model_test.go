@@ -55,11 +55,11 @@ func TestIndependentSwitchesAndConfirmation(t *testing.T) {
 		t.Fatal("applied without review")
 	}
 	m.cursor = 3
-	_, cmd := press(m, tea.KeyEnter)
+	m, cmd := press(m, tea.KeyEnter)
 	if cmd == nil {
 		t.Fatal("apply missing")
 	}
-	runEffect(cmd)
+	runFlow(m, cmd)
 	if b.installs != 1 {
 		t.Fatal("apply not run")
 	}
@@ -71,7 +71,7 @@ func TestDownloadRequiresY(t *testing.T) {
 	if m.screen != "download" {
 		t.Fatal("download page missing")
 	}
-	_, cmd := press(m, tea.KeyEnter)
+	m, cmd := press(m, tea.KeyEnter)
 	if cmd != nil || b.downloads != 0 {
 		t.Fatal("default consent is not no")
 	}
@@ -93,7 +93,7 @@ func TestRunningClaudeDoesNotStartInstall(t *testing.T) {
 	m.status.ClaudeRunning = true
 	m.screen = "review"
 	m.cursor = 3
-	_, cmd := press(m, tea.KeyEnter)
+	m, cmd := press(m, tea.KeyEnter)
 	if b.installs != 0 {
 		t.Fatal("running app accepted")
 	}
@@ -119,7 +119,7 @@ func TestUnsavedExitRequiresConfirmation(t *testing.T) {
 func TestLayoutFitsSupportedTerminalSizes(t *testing.T) {
 	m, _ := ready()
 	for _, size := range [][2]int{{40, 16}, {60, 24}, {80, 30}, {120, 40}} {
-		for _, screen := range []string{"loading", "font", "theme", "direction", "settings", "review", "download", "working", "done", "error"} {
+		for _, screen := range []string{"loading", "font", "theme", "direction", "settings", "review", "blocked", "download", "working", "done", "error"} {
 			m.width, m.height = size[0], size[1]
 			m.screen = screen
 			m.err = errors.New("test error\x1b[2J\x07\r line")
@@ -145,8 +145,7 @@ func TestSavedSettingsAndInstallErrors(t *testing.T) {
 	m.cursor = 3
 	b.fail = errors.New("Quit Claude and retry")
 	m, cmd := press(m, tea.KeyEnter)
-	next, _ := m.Update(runEffect(cmd))
-	m = next.(Model)
+	m = runFlow(m, cmd)
 	if m.screen != "error" || m.status.ExtensionInstalled {
 		t.Fatal("failure shown as installed")
 	}
@@ -233,4 +232,13 @@ func TestWindowsInterfaceUsesItsLauncherAndConsent(t *testing.T) {
 	if text := ansi.Strip(m.View().Content); !strings.Contains(text, "Claude Setup") || strings.Contains(text, "Applications folder") {
 		t.Fatal("wrong prerequisite step")
 	}
+}
+
+func runFlow(m Model, cmd tea.Cmd) Model {
+	for cmd != nil {
+		next, action := m.Update(runEffect(cmd))
+		m = next.(Model)
+		cmd = action
+	}
+	return m
 }

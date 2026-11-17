@@ -1,6 +1,6 @@
 {
   "name": "claude-desktop-tweaks",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Font, theme, and text direction settings for Claude Desktop",
   "type": "commonjs",
   "main": "bin/claude-desktop-tweaks.cjs",

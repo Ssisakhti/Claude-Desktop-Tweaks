@@ -78,7 +78,7 @@ func (m Model) steps() string {
 	if m.screen == "loading" || m.screen == "download" {
 		return dim.Render("Setup check")
 	}
-	n := map[string]int{"font": 0, "theme": 1, "direction": 2, "review": 3, "working": 3, "done": 3}[m.screen]
+	n := map[string]int{"font": 0, "theme": 1, "direction": 2, "review": 3, "blocked": 3, "working": 3, "done": 3}[m.screen]
 	labels := []string{"Font", "Theme", "Direction", "Apply"}
 	for i, label := range labels {
 		if i == n {
@@ -123,6 +123,8 @@ func (m Model) body(w, h int) string {
 			rows = append(rows, "", dim.Width(w).Render("Variable weights 100–900. The terminal uses its own font."))
 		}
 		return strings.Join(rows, "\n")
+	case "blocked":
+		return heading("Claude is still open", "Save your work, then quit Claude completely.") + "\n\n" + dim.Render("Your choices will stay here.") + "\n\n" + m.blockedActions()
 	case "settings", "review":
 		title, sub := "Your preferences", "Choose a row to edit. Apply when ready."
 		if m.screen == "review" {
@@ -142,9 +144,6 @@ func (m Model) body(w, h int) string {
 		action := "Review changes"
 		if m.screen == "review" {
 			action = "Apply changes"
-			if m.status.ClaudeRunning {
-				action = "Check again"
-			}
 		}
 		mark := "  "
 		if m.cursor == 3 {
@@ -248,6 +247,8 @@ func (m Model) help() string {
 	switch m.screen {
 	case "font", "theme", "direction":
 		return accent.Render("↑↓ Choose    Enter Next    Esc Back    Q Exit")
+	case "blocked":
+		return accent.Render("↑↓ Choose    Enter Select    Esc Back    Q Exit")
 	case "settings", "review":
 		return accent.Render("↑↓ Choose    Enter Select    Esc Back    Q Exit")
 	case "download":
@@ -266,4 +267,21 @@ func (m Model) help() string {
 	default:
 		return dim.Render("Checking · Q Exit")
 	}
+}
+
+func (m Model) blockedActions() string {
+	actions := []string{"Check again", "Back"}
+	rows := []string{}
+	for n, label := range actions {
+		mark := "  "
+		if n == m.cursor {
+			mark = "› "
+		}
+		row := mark + "[ " + label + " ]"
+		if n == m.cursor {
+			row = accent.Render(row)
+		}
+		rows = append(rows, row)
+	}
+	return strings.Join(rows, "\n\n")
 }
